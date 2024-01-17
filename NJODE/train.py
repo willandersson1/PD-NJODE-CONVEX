@@ -444,53 +444,10 @@ def train(
         params_dict['lmbda'] = 1
         model = models.NJODE_optimal_projection(**params_dict)
         model_name = 'NJODE optimal projection'
-    elif options['other_model'] == "randomizedNJODE":
-        model_name = 'randomizedNJODE'
-        epochs = 1
-        model = models.randomizedNJODE(**params_dict)
     elif options['other_model'] == "NJmodel":
         model_name = 'NJmodel'
         params_dict["hidden_size"] = output_size
         model = models.NJmodel(**params_dict)
-    elif options['other_model'] == "GRU_ODE_Bayes":  # see train documentation
-        model_name = 'GRU-ODE-Bayes'
-        # get parameters for GRU-ODE-Bayes model
-        hidden_size = params_dict['hidden_size']
-        mixing = 0.0001
-        if 'GRU_ODE_Bayes-mixing' in options:
-            mixing = options['GRU_ODE_Bayes-mixing']
-        solver = 'euler'
-        if 'GRU_ODE_Bayes-solver' in options:
-            solver = options['GRU_ODE_Bayes-solver']
-        impute = False
-        if 'GRU_ODE_Bayes-impute' in options:
-            impute = options['GRU_ODE_Bayes-impute']
-        logvar = True
-        if 'GRU_ODE_Bayes-logvar' in options:
-            logvar = options['GRU_ODE_Bayes-logvar']
-        full_gru_ode = True
-        if 'GRU_ODE_Bayes-full_gru_ode' in options:
-            full_gru_ode = options['GRU_ODE_Bayes-full_gru_ode']
-        p_hidden = hidden_size
-        if 'GRU_ODE_Bayes-p_hidden' in options:
-            p_hidden = options['GRU_ODE_Bayes-p_hidden']
-        prep_hidden = hidden_size
-        if 'GRU_ODE_Bayes-prep_hidden' in options:
-            prep_hidden = options['GRU_ODE_Bayes-prep_hidden']
-        cov_hidden = hidden_size
-        if 'GRU_ODE_Bayes-cov_hidden' in options:
-            cov_hidden = options['GRU_ODE_Bayes-cov_hidden']
-
-        model = models_gru_ode_bayes.NNFOwithBayesianJumps(  # import GRU ODE model
-            input_size=params_dict['input_size'],
-            hidden_size=params_dict['hidden_size'],
-            p_hidden=p_hidden, prep_hidden=prep_hidden,
-            bias=params_dict['bias'],
-            cov_size=params_dict['input_size'], cov_hidden=cov_hidden,
-            logvar=logvar, mixing=mixing,
-            dropout_rate=params_dict['dropout_rate'],
-            full_gru_ode=full_gru_ode, solver=solver, impute=impute,
-        )
     else:
         raise ValueError("Invalid argument for (option) parameter 'other_model'."
                          "Please check docstring for correct use.")
@@ -634,21 +591,6 @@ def train(
                     times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
                     delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
                     return_path=False, get_loss=True, M=M, start_M=start_M)
-            elif options['other_model'] == "randomizedNJODE":
-                linreg_X_, linreg_y_ = model.get_Xy_reg(
-                    times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
-                    delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
-                    return_path=False, M=M, start_M=start_M)
-                linreg_X += linreg_X_
-                linreg_y += linreg_y_
-                loss = torch.tensor(0.)
-                continue
-            elif options['other_model'] == "GRU_ODE_Bayes":
-                if M is None:
-                    M = torch.ones_like(X)
-                hT, loss, _, _ = model(
-                    times, time_ptr, X, M, obs_idx, delta_t, T, start_X,
-                    return_path=False, smoother=False)
             else:
                 raise ValueError
             loss.backward()  # compute gradient of each weight regarding loss function
@@ -701,12 +643,6 @@ def train(
                         times, time_ptr, X, obs_idx, delta_t, T, start_X,
                         n_obs_ot, return_path=False, get_loss=True, M=M,
                         start_M=start_M, which_loss='standard')
-                elif options['other_model'] == "GRU_ODE_Bayes":
-                    if M is None:
-                        M = torch.ones_like(X)
-                    hT, c_loss, _, _ = model(
-                        times, time_ptr, X, M, obs_idx, delta_t, T, start_X,
-                        return_path=False, smoother=False,)
                 else:
                     raise ValueError
                 loss_val += c_loss.detach().numpy()
@@ -977,22 +913,9 @@ def plot_one_path_with_pred(
                                 true_X[i, j, k]+obs_noise[i, j, k])
             path_t_obs = np.array(path_t_obs)
             path_X_obs = np.array(path_X_obs)
-            if obs_noise is not None:
-                path_O_obs = np.array(path_O_obs)
 
             axs[j].plot(path_t_true_X, true_X[i, j, :], label='true path',
                         color=colors[0])
-            if obs_noise is not None:
-                axs[j].scatter(path_t_obs, path_O_obs, label='observed',
-                               color=colors[0])
-                axs[j].scatter(path_t_obs, path_X_obs,
-                               label='true value at obs time',
-                               color=colors[2], marker='*')
-            else:
-                axs[j].scatter(path_t_obs, path_X_obs, label='observed',
-                               color=colors[0])
-            axs[j].plot(path_t_pred, path_y_pred[:, i, j],
-                        label=model_name, color=colors[1])
             if plot_variance:
                 axs[j].fill_between(
                     path_t_pred,
@@ -1003,41 +926,6 @@ def plot_one_path_with_pred(
                 axs[j].plot(path_t_true, path_y_true[:, i, j],
                             label='true conditional expectation',
                             linestyle=':', color=colors[2])
-            if plot_obs_prob and dataset_metadata is not None:
-                ax2 = axs[j].twinx()
-                if "X_dependent_observation_prob" in dataset_metadata:
-                    prob_f = eval(
-                        dataset_metadata["X_dependent_observation_prob"])
-                    obs_perc = prob_f(true_X[:, :, :])[i]
-                elif "obs_scheme" in dataset_metadata:
-                    obs_scheme = dataset_metadata["obs_scheme"]
-                    if obs_scheme["name"] == "NJODE3-Example4.9":
-                        obs_perc = np.ones_like(path_t_true_X)
-                        x0 = true_X[i, 0, 0]
-                        p = obs_scheme["p"]
-                        eta = obs_scheme["eta"]
-                        last_observation = x0
-                        last_obs_time = 0
-                        for k, t in enumerate(path_t_true_X[1:]):
-                            q = 1/(k+1-last_obs_time)
-                            normal_prob = stats.norm.sf(
-                                stockmodel.next_cond_exp(
-                                    x0, (k+1)*delta_t, (k+1)*delta_t),
-                                scale=eta, loc=last_observation)
-                            obs_perc[k+1] = q*normal_prob + (1-q)*p
-                            if observed_dates[i, k+1] == 1:
-                                last_observation = true_X[i, 0, k+1]
-                                last_obs_time = k+1
-                else:
-                    obs_perc = dataset_metadata['obs_perc']
-                    obs_perc = np.ones_like(path_t_true_X) * obs_perc
-                ax2.plot(path_t_true_X, obs_perc, color="red",
-                         label="observation probability")
-                ax2.set_ylim(-0.1, 1.1)
-                ax2.set_ylabel("observation probability")
-                axs[j].set_ylabel("$X$")
-                ax2.legend()
-                axs[j].set_xlabel("$t$")
             if ylabels:
                 axs[j].set_ylabel(ylabels[j])
             if same_yaxis:
@@ -1056,5 +944,3 @@ def plot_one_path_with_pred(
         plt.close()
 
     return opt_loss
-
-
