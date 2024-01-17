@@ -436,6 +436,14 @@ def train(
     if 'other_model' not in options:  # take NJODE model if not specified otherwise
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = 'NJODE'
+    elif options['other_model'] == 'cvx':
+        # TODO trigger the other model
+        # TODO add the other needed params
+        params_dict['projection_func'] = lambda x: x
+        params_dict['penalising_func'] = lambda x: 10
+        params_dict['lmbda'] = 1
+        model = models.NJODE_optimal_projection(**params_dict)
+        model_name = 'NJODE optimal projection'
     elif options['other_model'] == "randomizedNJODE":
         model_name = 'randomizedNJODE'
         epochs = 1

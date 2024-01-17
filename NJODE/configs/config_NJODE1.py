@@ -176,7 +176,8 @@ path_BS = '{}conv-study-BS-saved_models/'.format(data_path)
 params_list_convstud_BS = []
 for _ode_nn in ode_nn:
     param_dict_convstud_BS = {
-        'epochs': [100],
+        'epochs': [2], 
+        'other_model': ['cvx'], # TODO remove after debugging
         'batch_size': [20],
         'save_every': [10],
         'learning_rate': [0.001],
