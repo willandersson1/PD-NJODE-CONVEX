@@ -55,30 +55,6 @@ FBM_1_dict = {
     'return_vol': False, 'hurst': 0.05,
     'FBMmethod': "daviesharte"
 }
-FBM_2_dict = {
-    'model_name': "FBM",
-    'nb_paths': 100000, 'nb_steps': 100,
-    'S0': 0, 'maturity': 1., 'dimension': 1,
-    'obs_perc': 0.1,
-    'return_vol': False, 'hurst': 0.25,
-    'FBMmethod': "daviesharte"
-}
-FBM_3_dict = {
-    'model_name': "FBM",
-    'nb_paths': 100000, 'nb_steps': 100,
-    'S0': 0, 'maturity': 1., 'dimension': 1,
-    'obs_perc': 0.1,
-    'return_vol': False, 'hurst': 0.75,
-    'FBMmethod': "daviesharte"
-}
-FBM_4_dict = {
-    'model_name': "FBM",
-    'nb_paths': 100000, 'nb_steps': 100,
-    'S0': 0, 'maturity': 1., 'dimension': 1,
-    'obs_perc': 0.1,
-    'return_vol': False, 'hurst': 0.95,
-    'FBMmethod': "daviesharte"
-}
 
 # ------------------------------------------------------------------------------
 BM_2D_dict = {
@@ -259,7 +235,7 @@ plot_paths_ppp_dict = {
 FBM_models_path = "{}saved_models_FBM/".format(data_path)
 param_list_FBM1 = []
 param_dict_FBM1_1 = {
-    'epochs': [200],
+    'epochs': [3],
     'batch_size': [200],
     'save_every': [1],
     'learning_rate': [0.001],
@@ -283,130 +259,6 @@ param_dict_FBM1_1 = {
     'saved_models_path': [FBM_models_path],
 }
 param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_1)
-
-for size in [50, 200]:
-    _nn = ((size, 'tanh'), (size, 'tanh'))
-    param_dict_FBM1_2 = {
-        'epochs': [200],
-        'batch_size': [50, 200],
-        'save_every': [1],
-        'learning_rate': [0.001],
-        'test_size': [0.2],
-        'seed': [398],
-        'hidden_size': [10, 50],
-        'bias': [True],
-        'dropout_rate': [0.1],
-        'ode_nn': [_nn],
-        'readout_nn': [_nn],
-        'enc_nn': [_nn],
-        'use_rnn': [False],
-        'func_appl_X': [[]],
-        'solver': ["euler"],
-        'weight': [0.5],
-        'weight_decay': [1.],
-        'input_sig': [True],
-        'level': [2, 3],
-        'data_dict': ['FBM_1_dict'],
-        'which_loss': ['standard', 'easy'],
-        'plot': [True],
-        'evaluate': [True],
-        'paths_to_plot': [(0,1,2,3,4,)],
-        'saved_models_path': [FBM_models_path],
-    }
-    param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_2)
-
-for _nn in [((200, 'tanh'), (200, 'tanh')), ]:
-    param_dict_FBM1_3 = {
-        'epochs': [200],
-        'batch_size': [200],
-        'save_every': [1],
-        'learning_rate': [0.001],
-        'test_size': [0.2],
-        'seed': [398],
-        'hidden_size': [50, 100],
-        'bias': [True],
-        'dropout_rate': [0.1],
-        'ode_nn': [_nn],
-        'readout_nn': [_nn, None],
-        'enc_nn': [_nn],
-        'use_rnn': [True,],
-        'func_appl_X': [[]],
-        'solver': ["euler"],
-        'weight': [0.5],
-        'weight_decay': [1.],
-        'input_sig': [True, False],
-        'level': [3],
-        'data_dict': ['FBM_1_dict'],
-        'which_loss': ['easy'],
-        'plot': [True],
-        'evaluate': [True],
-        'paths_to_plot': [(0,1,2,3,4,)],
-        'saved_models_path': [FBM_models_path],
-    }
-    param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_3)
-
-
-for _nn in [((200, 'tanh'), (200, 'tanh')), ]:
-    param_dict_FBM1_4 = {
-        'epochs': [200],
-        'batch_size': [200],
-        'save_every': [1],
-        'learning_rate': [0.001],
-        'test_size': [0.2],
-        'seed': [398],
-        'hidden_size': [50, 100],
-        'bias': [True],
-        'dropout_rate': [0.1],
-        'ode_nn': [_nn],
-        'readout_nn': [_nn],
-        'enc_nn': [_nn],
-        'use_rnn': [False,],
-        'func_appl_X': [[]],
-        'solver': ["euler"],
-        'weight': [0.5],
-        'weight_decay': [1.],
-        'input_sig': [False],
-        'level': [3],
-        'data_dict': ['FBM_1_dict'],
-        'which_loss': ['easy'],
-        'plot': [True],
-        'evaluate': [True],
-        'paths_to_plot': [(0,1,2,3,4,)],
-        'saved_models_path': [FBM_models_path],
-    }
-    param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_4)
-
-for _nn in [((200, 'tanh'), (200, 'tanh')), ]:
-    param_dict_FBM1_5 = {
-        'epochs': [200],
-        'batch_size': [200],
-        'save_every': [1],
-        'learning_rate': [0.001],
-        'test_size': [0.2],
-        'seed': [398],
-        'hidden_size': [50,],
-        'bias': [True],
-        'dropout_rate': [0.1],
-        'ode_nn': [_nn],
-        'readout_nn': [_nn],
-        'enc_nn': [_nn],
-        'use_rnn': [True,],
-        'func_appl_X': [[]],
-        'solver': ["euler"],
-        'weight': [0.5],
-        'weight_decay': [1.],
-        'input_sig': [True],
-        'level': [1,2,4,5,6,7,8,9,10],
-        'data_dict': ['FBM_1_dict'],
-        'which_loss': ['easy'],
-        'plot': [True],
-        'evaluate': [True],
-        'paths_to_plot': [(0,1,2,3,4,)],
-        'saved_models_path': [FBM_models_path],
-    }
-    param_list_FBM2 = get_parameter_array(param_dict=param_dict_FBM1_5)
-    param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_5)
-
 
 overview_dict_FBM1 = dict(
     ids_from=1, ids_to=len(param_list_FBM1),

@@ -28,7 +28,6 @@ from configs import config
 import models
 import data_utils
 sys.path.append("../")
-import GRU_ODE_Bayes.models_gru_ode_bayes as models_gru_ode_bayes
 
 try:
     from telegram_notifications import send_bot_message as SBM
@@ -452,45 +451,6 @@ def train(
         model_name = 'NJmodel'
         params_dict["hidden_size"] = output_size
         model = models.NJmodel(**params_dict)
-    elif options['other_model'] == "GRU_ODE_Bayes":  # see train documentation
-        model_name = 'GRU-ODE-Bayes'
-        # get parameters for GRU-ODE-Bayes model
-        hidden_size = params_dict['hidden_size']
-        mixing = 0.0001
-        if 'GRU_ODE_Bayes-mixing' in options:
-            mixing = options['GRU_ODE_Bayes-mixing']
-        solver = 'euler'
-        if 'GRU_ODE_Bayes-solver' in options:
-            solver = options['GRU_ODE_Bayes-solver']
-        impute = False
-        if 'GRU_ODE_Bayes-impute' in options:
-            impute = options['GRU_ODE_Bayes-impute']
-        logvar = True
-        if 'GRU_ODE_Bayes-logvar' in options:
-            logvar = options['GRU_ODE_Bayes-logvar']
-        full_gru_ode = True
-        if 'GRU_ODE_Bayes-full_gru_ode' in options:
-            full_gru_ode = options['GRU_ODE_Bayes-full_gru_ode']
-        p_hidden = hidden_size
-        if 'GRU_ODE_Bayes-p_hidden' in options:
-            p_hidden = options['GRU_ODE_Bayes-p_hidden']
-        prep_hidden = hidden_size
-        if 'GRU_ODE_Bayes-prep_hidden' in options:
-            prep_hidden = options['GRU_ODE_Bayes-prep_hidden']
-        cov_hidden = hidden_size
-        if 'GRU_ODE_Bayes-cov_hidden' in options:
-            cov_hidden = options['GRU_ODE_Bayes-cov_hidden']
-
-        model = models_gru_ode_bayes.NNFOwithBayesianJumps(  # import GRU ODE model
-            input_size=params_dict['input_size'],
-            hidden_size=params_dict['hidden_size'],
-            p_hidden=p_hidden, prep_hidden=prep_hidden,
-            bias=params_dict['bias'],
-            cov_size=params_dict['input_size'], cov_hidden=cov_hidden,
-            logvar=logvar, mixing=mixing,
-            dropout_rate=params_dict['dropout_rate'],
-            full_gru_ode=full_gru_ode, solver=solver, impute=impute,
-        )
     else:
         raise ValueError("Invalid argument for (option) parameter 'other_model'."
                          "Please check docstring for correct use.")
@@ -643,12 +603,6 @@ def train(
                 linreg_y += linreg_y_
                 loss = torch.tensor(0.)
                 continue
-            elif options['other_model'] == "GRU_ODE_Bayes":
-                if M is None:
-                    M = torch.ones_like(X)
-                hT, loss, _, _ = model(
-                    times, time_ptr, X, M, obs_idx, delta_t, T, start_X,
-                    return_path=False, smoother=False)
             else:
                 raise ValueError
             loss.backward()  # compute gradient of each weight regarding loss function
@@ -701,12 +655,6 @@ def train(
                         times, time_ptr, X, obs_idx, delta_t, T, start_X,
                         n_obs_ot, return_path=False, get_loss=True, M=M,
                         start_M=start_M, which_loss='standard')
-                elif options['other_model'] == "GRU_ODE_Bayes":
-                    if M is None:
-                        M = torch.ones_like(X)
-                    hT, c_loss, _, _ = model(
-                        times, time_ptr, X, M, obs_idx, delta_t, T, start_X,
-                        return_path=False, smoother=False,)
                 else:
                     raise ValueError
                 loss_val += c_loss.detach().numpy()
