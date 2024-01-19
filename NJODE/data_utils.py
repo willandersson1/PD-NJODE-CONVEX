@@ -30,7 +30,6 @@ flags.DEFINE_string("dataset_name", None,
 flags.DEFINE_integer("seed", 0,
                      "seed for making dataset generation reproducible")
 
-hyperparam_default = config.hyperparam_default
 _STOCK_MODELS = synthetic_datasets.DATASETS
 data_path = config.data_path
 training_data_path = config.training_data_path
@@ -56,7 +55,7 @@ def get_dataset_overview(training_data_path=training_data_path):
 
 def create_dataset(
         stock_model_name="BlackScholes", 
-        hyperparam_dict=hyperparam_default,
+        hyperparam_dict=None,
         seed=0):
     """
     create a synthetic dataset using one of the stock-models
@@ -254,7 +253,7 @@ def create_dataset(
 
 def create_combined_dataset(
         stock_model_names=("BlackScholes", "OrnsteinUhlenbeck"),
-        hyperparam_dicts=(hyperparam_default, hyperparam_default),
+        hyperparam_dicts=None,
         seed=0):
     """
     create a synthetic dataset using one of the stock-models
@@ -340,7 +339,7 @@ def create_combined_dataset(
     return path, time_id
 
 
-def create_LOB_dataset(hyperparam_dict=hyperparam_default,
+def create_LOB_dataset(hyperparam_dict=None,
                        seed=0):
     """
     create Limit Order Book (LOB) datasets.
@@ -497,7 +496,7 @@ def create_LOB_dataset(hyperparam_dict=hyperparam_default,
 
 
 def get_rawLOB_dataset2(
-        hyperparam_dict=hyperparam_default,
+        hyperparam_dict=None,
         seed=0):
     raw_data_path = config.LOB_data_path2
     makedirs(raw_data_path)
@@ -538,7 +537,7 @@ def get_rawLOB_dataset2(
 
 
 def get_rawLOB_dataset1(
-        hyperparam_dict=hyperparam_default,
+        hyperparam_dict=None,
         seed=0):
     raw_data_path = config.LOB_data_path
     np.random.seed(seed=seed)

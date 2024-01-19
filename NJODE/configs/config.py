@@ -2,12 +2,6 @@
 author: Florian Krach
 """
 
-from configs.config_NJODE1 import *
-from configs.config_LOB import *
-from configs.config_randomizedNJODE import *
-from configs.config_NJmodel import *
-from configs.config_NJODE3 import *
-
 import numpy as np
 import socket
 
