@@ -6,7 +6,7 @@ implementation of the training (and evaluation) of NJ-ODE
 
 # =====================================================================================================================
 from typing import List
-
+sadf = 87987394
 import torch  # machine learning
 import torch.nn as nn
 import tqdm  # process bar for iterations
