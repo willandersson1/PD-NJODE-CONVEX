@@ -5,7 +5,7 @@ code to generate synthetic data from stock-model SDEs
 """
 
 # ==============================================================================
-from math import sqrt, exp, isnan, gamma
+from math import sqrt, exp, isnan, gamma, pi, erf, isclose
 import numpy as np
 import tqdm
 from scipy.integrate import quad
@@ -193,6 +193,7 @@ class StockModel:
         loss, _, _ = self.compute_cond_exp(
             times, time_ptr, X, obs_idx, delta_t, T, start_X, n_obs_ot,
             return_path=True, get_loss=True, weight=weight, M=M)
+        
         return loss
 
 
@@ -389,6 +390,190 @@ class FracBM(StockModel):
                 spot_paths[i, j, 1:] = np.cumsum(fgn_sample)+spot_paths[i, j, 0]
         # stock_path dimension: [nb_paths, dimension, time_steps]
         return spot_paths, dt
+
+# TODO turn into 
+class ReflectedBM(StockModel):
+    def __init__(self, mu, sigma, max_terms, lb, ub, max_z, nb_paths, dimensions, nb_steps, maturity, use_approx_paths_technique):
+        assert lb < ub
+        assert lb + mu <= ub
+        assert ub - mu >= lb # TODO I think these are needed
+
+        self.mu = mu
+        self.sigma = sigma
+        self.max_terms = max_terms
+        self.lb = lb
+        self.ub = ub
+        self.max_z = max_z
+        self.nb_paths = nb_paths
+        self.dimensions = dimensions
+        self.nb_steps = nb_steps
+        self.maturity = maturity
+        self.use_approx_paths_technique = use_approx_paths_technique
+        self.norm_cdf = lambda x: 0.5 * (1 + erf((x - self.mu) / self.sigma * sqrt(2)))
+
+    def _get_bounds(self, a, b, k):
+        return a + k*(b - a), b + k*(b-a)
+
+    def _proj(self, x):
+        # TODO prove it works. Florian's idea
+        # TODO could probably pick z or k smartly. For sure should expand inside-out for k though
+        if self.lb < x < self.ub:
+            return x
+
+        for z in range(-self.max_z, self.max_z + 1):
+            k = 2*z + 1
+            l, u = self._get_bounds(self.lb, self.ub, k)
+            if l <= x <= u:
+                return self.ub - (x - (self.lb + k*( self.ub- self.lb)))
+            
+            k = 2*z
+            l, u = self._get_bounds(self.lb, self.ub, k)
+            if l <= x <= u:
+                return self.lb + (x - (self.lb + k*(self.ub - self.lb)))
+
+        # If wasn't able to project with the above logic, need to expand approximation
+        raise Exception(f"Not maz_z of {self.max_z} not enough to approximate projection of {x}")
+
+    def _generate_approx_paths(self, x0):
+        # Generate approximate path by manually "projecting" onto the boundaries. This is technically
+        # an approximation since it has positive probability of landing on the boundary.
+        spot_paths = np.empty((self.nb_paths, self.dimensions, self.nb_steps + 1))
+        spot_paths[:, :, 0] = x0
+        for i in range(self.nb_paths):
+            for j in range(self.dimensions):
+                scale = 1.0 * self.maturity / (self.nb_steps + 1)
+                raw_paths = scale * np.cumsum(np.random.normal(self.mu, self.sigma, self.nb_steps)) + spot_paths[i, j, 0]
+                projected_paths = np.array([self._proj(x) for x in raw_paths])
+                spot_paths[i, j, 1:] = projected_paths
+
+        return spot_paths
+    
+    def _generate_true_paths(self, x0):
+        # TODO will have to use rejection sampling or some MCMC method
+        # https://jaketae.github.io/study/rejection-sampling/
+        # TODO can write about this: trying to find a function that covers it, for rejection sampling, but there are asymptotes so not possible
+        # from scipy.stats import norm
+        # opts = (0.5, 0.35, 10, 1.0, 2.0)
+        # mu, sigma, max_terms, lb, ub = opts
+        # asdf = c(*opts)
+        # x0 = (lb + ub)/2
+        # t = 0.5
+        # t0 = 0
+        # # asdf.reflected_bm_pdf((lb + ub)/2, t, x0, t0)
+        # p = lambda x: asdf.reflected_bm_pdf(x, t, x0, t0)
+        # q = lambda x: norm.pdf(x, mu*(t - t0) + x0, sigma*sqrt(t - t0))
+        # x = np.linspace(lb, ub, 100)
+        # fig, ax = plt.subplots()
+        # ax.plot(x, [p(t) for t in x], color='b')
+        # ax.plot(x, [q(t) for t in x], color='r')
+        # ax.plot(x, [2*q(t) for t in x], color='g') # TODO this works pretty well, but if I increase sigma it eventually gets worse. And 1/sigma, 1/(sigma**2) also wrong. Also for very small values of mu. Maybe can argue like that std dev larger than (ub - lb) doesn't make sense?
+
+        return NotImplementedError()
+
+    def generate_paths(self, x0):
+        assert self.lb <= x0 <= self.ub
+
+        if self.use_approx_paths_technique:
+            return self._generate_approx_paths(x0)
+        else:
+            return self._generate_true_paths(x0)
+        
+
+
+
+
+    def reflected_bm_pdf(self, x, t, x0, t0):
+        # Follow eqn 11 of
+        # https://link.springer.com/content/pdf/10.1023/B:CSEM.0000049491.13935.af.pdf
+        # TODO can write about this in paper
+        # NOTE: to avoid overflows, need to bring the exps into one, within each sum.
+        # Additionally, sometimes need to do check to see if multiply by 0 (short cut), 
+        # otherwise evaluating a huge number
+        # ########
+        # n = pinf
+        # t1 = (2*mu*(n*d - (n + 1)*c + x)) / sigma**2
+        # t2 = (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
+        # print(t1, t2)
+        # print(t2 * t1)
+        # S3 = -coeff * sum(
+        #     exp( (2*mu*(n*d - (n + 1)*c + x)) / sigma**2) \
+        #     * (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
+        #     for n in range(0, pinf)
+        # )
+        
+        # opts = (0.2, 0.02, 10, 4, 10)
+
+        # x0 = (lb + ub)/2
+        # t = 1
+        # t0 = 0
+        # asdf.reflected_bm_pdf((lb + ub)/2, t, x0, t0)
+
+        mu = self.mu
+        sigma = self.sigma
+        pinf = self.max_terms
+        ninf = -self.max_terms
+        c = self.lb
+        d = self.ub
+        phi = self.norm_cdf
+
+        assert c <= x <= d
+        assert c <= x0 <= d
+        assert t0 < t
+        
+        coeff = 1.0/(sigma*sqrt(2*pi*(t - t0)))
+        S1 = coeff * sum(
+            exp((2*mu*n*(c - d) / (sigma**2)) \
+            + (-(((x + 2*n*(d - c) - x0 - mu*(t - t0))**2) / (2*(sigma**2)*(t - t0)))))
+            for n in range(ninf, pinf)
+        )
+
+        S2 = coeff * sum(
+            exp(-(2 * mu * (n * d - (n + 1) * c + x0)) / sigma**2 \
+            + (-((2 * n * d - 2 * (n + 1) * c + x0 + x - mu * (t - t0))**2)/(2 * sigma**2 * (t - t0))))
+            for n in range(ninf, pinf)
+        )
+
+        coeff = (2*mu) / sigma ** 2
+
+        S3 = 0
+        for n in range(0, pinf):
+            t2 = (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
+            # avoid danger because t1 can become very large, even if s2 is exactly 0
+            # note the numerator of t2 [0, 1] so we don't really have to worry about it overflowing
+            if isclose(t2, 0): 
+                # adding 0, since t2 will make the whole term 0
+                continue 
+            t1 = (2*mu*(n*d - (n + 1)*c + x)) / sigma**2
+            S3 += exp(t1) * t2
+        S3 = -coeff * S3
+
+        # Same technique as above
+        S4 = 0
+        for n in range(0, pinf):
+            t2 = phi((mu*(t - t0) - 2*(n + 1)*d + 2*n*c + x0 + x) / (sigma * sqrt(t - t0)))
+            if isclose(t2, 0):
+                continue
+            t1 = 2*mu*(n*c - (n + 1)*d + x) / sigma**2
+            S4 += exp(t1) * t2
+        S4 = coeff * S4
+
+
+        return S1 + S2 + S3 + S4
+    
+    def next_cond_exp(self):
+        raise NotImplementedError
+    
+    def compute_cond_exp(self):
+        raise NotImplementedError
+
+
+
+class Ball(StockModel):
+    pass
+
+class VertexApproach(StockModel):
+    pass
+
 
 
 # ==============================================================================

@@ -1197,3 +1197,8 @@ class NJODE_optimal_projection(NJODE):
 
     def evalute_LOB():
         raise NotImplementedError("Not relevant for convex case")
+
+
+class NJODE_vertex_approach(NJODE):
+    raise NotImplementedError
+
