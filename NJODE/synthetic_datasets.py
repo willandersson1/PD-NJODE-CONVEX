@@ -391,9 +391,11 @@ class FracBM(StockModel):
         # stock_path dimension: [nb_paths, dimension, time_steps]
         return spot_paths, dt
 
-# TODO turn into 
+
 class ReflectedBM(StockModel):
-    def __init__(self, mu, sigma, max_terms, lb, ub, max_z, nb_paths, dimensions, nb_steps, maturity, use_approx_paths_technique):
+    def __init__(self, mu, sigma, max_terms, lb, ub, max_z, nb_paths, 
+                 dimension, nb_steps, maturity, use_approx_paths_technique, use_numerical_cond_exp,
+                 **kwargs):
         assert lb < ub
         assert lb + mu <= ub
         assert ub - mu >= lb # TODO I think these are needed
@@ -405,10 +407,16 @@ class ReflectedBM(StockModel):
         self.ub = ub
         self.max_z = max_z
         self.nb_paths = nb_paths
-        self.dimensions = dimensions
+        self.dimension = dimension
+        self.dimensions = 1 # TODO not sure what this is for/if useful
         self.nb_steps = nb_steps
         self.maturity = maturity
+        self.dt = maturity / nb_steps
+        self.loss = None
+        self.path_t = None
+        self.path_y = None
         self.use_approx_paths_technique = use_approx_paths_technique
+        self.use_numerical_cond_exp = use_numerical_cond_exp
         self.norm_cdf = lambda x: 0.5 * (1 + erf((x - self.mu) / self.sigma * sqrt(2)))
 
     def _get_bounds(self, a, b, k):
@@ -470,17 +478,15 @@ class ReflectedBM(StockModel):
 
         return NotImplementedError()
 
-    def generate_paths(self, x0):
+    def generate_paths(self, x0=None):
+        if x0 is None:
+            x0 = (self.lb + self.ub) / 2
         assert self.lb <= x0 <= self.ub
 
         if self.use_approx_paths_technique:
-            return self._generate_approx_paths(x0)
+            return self._generate_approx_paths(x0), self.dt
         else:
-            return self._generate_true_paths(x0)
-        
-
-
-
+            return self._generate_true_paths(x0), self.dt
 
     def reflected_bm_pdf(self, x, t, x0, t0):
         # Follow eqn 11 of
@@ -516,6 +522,29 @@ class ReflectedBM(StockModel):
         d = self.ub
         phi = self.norm_cdf
 
+        # TODO hack fix when e.g. at 0.999999994 and c is 1
+        #      should put this into a separate function
+        rel_tol = 10e-4
+        if not (c <= x) and isclose(x, c, rel_tol=rel_tol):
+            x = c
+        elif not (x <= d) and isclose(x, d, rel_tol=rel_tol):
+            x = d
+
+        if not (c <= x0) and isclose(x0, c, rel_tol=rel_tol):
+            x0 = c
+        elif not (x0 <= d) and isclose(x0, d, rel_tol=rel_tol):
+            x0 = d
+
+        # TODO consider what the pdf should be when these are not true.
+        # If x (what we're asking for) is outside, then it's not possible.
+        # If the previous point is outside? then the prob is undefined. 
+        # Just round it to closest of c or d and return that density?
+        if not (c <= x <= d):
+            return 0.0
+        
+        if not (c <= x0 <= d): # TODO def rethink this
+            x0 = c if abs(x0 - c) < abs(x0 - d) else d
+        
         assert c <= x <= d
         assert c <= x0 <= d
         assert t0 < t
@@ -557,15 +586,134 @@ class ReflectedBM(StockModel):
             S4 += exp(t1) * t2
         S4 = coeff * S4
 
-
         return S1 + S2 + S3 + S4
     
-    def next_cond_exp(self):
+    def next_cond_exp(self, y, delta_t, current_t):
+        assert delta_t > 0
+        if self.use_numerical_cond_exp:
+            return self._compute_numerical_next_cond_exp(y, delta_t, current_t)
+        else:
+            return self._compute_true_next_cond_exp(y, delta_t, current_t)
+    
+    def _compute_numerical_next_cond_exp(self, y, delta_t, current_t):
+        t0 = current_t
+        t = current_t + delta_t
+        out = np.zeros_like(y)
+        for i, x0 in enumerate(y):
+            integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
+            out[i] = quad(integrand, self.lb, self.ub)[0]
+
+        return out
+        
+    def _compute_true_next_cond_exp(self, y, delta_t, current_t):
         raise NotImplementedError
     
-    def compute_cond_exp(self):
-        raise NotImplementedError
 
+    def compute_cond_exp(self, times, time_ptr, X, obs_idx, delta_t, T, start_X,
+                         n_obs_ot, return_path=True, get_loss=False,
+                         weight=0.5, store_and_use_stored=True,
+                         start_time=None,
+                         **kwargs):
+        # TODO this is identical to FBM, except removed the cov_mat stuff
+        if return_path and store_and_use_stored:
+            if get_loss:
+                if self.path_t is not None and self.loss is not None:
+                    return self.loss, self.path_t, self.path_y
+            else:
+                if self.path_t is not None:
+                    return self.loss, self.path_t, self.path_y
+        elif store_and_use_stored:
+            if get_loss:
+                if self.loss is not None:
+                    return self.loss
+
+        bs = start_X.shape[0]
+        self.observed_t = [[] for x in range(bs)]
+        self.observed_X = [[] for x in range(bs)]
+
+        y = start_X
+        batch_size = bs
+        current_time = 0.0
+        if start_time:
+            current_time = start_time
+
+        loss = 0
+
+        if return_path:
+            if start_time:
+                path_t = []
+                path_y = []
+            else:
+                path_t = [0.]
+                path_y = [y]
+
+        for i, obs_time in enumerate(times):
+            # Calculate conditional expectation stepwise
+            while current_time < (obs_time - 1e-10 * delta_t):
+                if current_time < obs_time - delta_t:
+                    delta_t_ = delta_t
+                else:
+                    delta_t_ = obs_time - current_time
+                y = self.next_cond_exp(y, delta_t_, current_time)
+                current_time = current_time + delta_t_
+
+                # Storing the conditional expectation
+                if return_path:
+                    path_t.append(current_time)
+                    path_y.append(y)
+
+            # Reached an observation - set new interval
+            start = time_ptr[i]
+            end = time_ptr[i + 1]
+            X_obs = X[start:end]
+            i_obs = obs_idx[start:end]
+
+            # add to observed
+            for j, ii in enumerate(i_obs):
+                self.observed_t[ii].append(obs_time)
+                self.observed_X[ii].append(X_obs[j, 0])
+
+            # Update h. Also updating loss, tau and last_X
+            Y_bj = y
+            temp = copy.copy(y)
+            temp[i_obs] = X_obs
+            y = temp
+            Y = y
+
+            if get_loss:
+                loss = loss + compute_loss(
+                    X_obs=X_obs, Y_obs=Y[i_obs], Y_obs_bj=Y_bj[i_obs],
+                    n_obs_ot=n_obs_ot[i_obs], batch_size=batch_size,
+                    weight=weight)
+            if return_path:
+                path_t.append(obs_time)
+                path_y.append(y)
+
+        # after every observation has been processed, propagating until T
+        while current_time < T - 1e-10 * delta_t:
+            if current_time < T - delta_t:
+                delta_t_ = delta_t
+            else:
+                delta_t_ = T - current_time
+            y = self.next_cond_exp(y, delta_t_, current_time)
+            current_time = current_time + delta_t_
+
+            # Storing the predictions.
+            if return_path:
+                path_t.append(current_time)
+                path_y.append(y)
+
+        if get_loss and store_and_use_stored:
+            self.loss = loss
+        if return_path and store_and_use_stored:
+            self.path_t = np.array(path_t)
+            self.path_y = np.array(path_y)
+
+        if return_path:
+            # path dimension: [time_steps, batch_size, output_size]
+            return loss, np.array(path_t), np.array(path_y)
+        else:
+            return loss
 
 
 class Ball(StockModel):
@@ -601,6 +749,7 @@ def compute_loss(X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps=1e-10,
 # dict for the supported stock models to get them from their name
 DATASETS = {
     "FBM": FracBM,
+    "RBM": ReflectedBM,
 }
 # ==============================================================================
 

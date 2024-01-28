@@ -66,8 +66,6 @@ def get_ckpt_model(ckpt_path, model, optimizer, device):
     model.weight = checkpt['weight']
     if 'retrain_epoch' in checkpt:
         model.retrain_epoch = checkpt['retrain_epoch']
-    if isinstance(model.readout_map, LinReg):
-        model.readout_map.fitted = True
     model.to(device)
 
 
@@ -109,20 +107,10 @@ def compute_loss(X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps=1e-10,
 
 
 def compute_loss_cvx(X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, penalising_func, Y_obs_before_proj, Y_obs_bj_before_proj,
-                     lmda=1, eps=1e-10, weight=0.5, M_obs=None):
-    """
-    New loss function penalising distance from convex set. Based on compute_loss.
-    :param Y_obs: torch.tensor, the predicted values at the observation
-    :param n_obs_ot: torch.tensor, the number of observations over the entire
-            time-line for each element of the batch
-    :param batch_size: int or float
-    :param penalising_func: function R^{d_X} -> float, adding loss if 
-                            the predicted points if far from the convex set
-    :param lmbda: coefficient lambda to penalise if the prediction is far away from Q
-    :return: torch.tensor (with the loss, reduced to 1 dim)
-    """
-    # TODO update the string ^
-    cvx_loss = lmda * (1 / n_obs_ot) * torch.sum(map(penalising_func, *(Y_obs, Y_obs_bj, Y_obs_before_proj, Y_obs_bj_before_proj)), dim=1)
+                     lmbda=1, eps=1e-10, weight=0.5, M_obs=None):
+    pen_1 = penalising_func(Y_obs_before_proj)
+    pen_2 = penalising_func(Y_obs_bj_before_proj)
+    cvx_loss = lmbda * (1 / torch.sum(n_obs_ot)) * (pen_1 + pen_2)
     cvx_loss /= batch_size
     original_loss = compute_loss(X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps, weight, M_obs)
     loss = cvx_loss + original_loss
@@ -962,12 +950,12 @@ class NJODE_optimal_projection(NJODE):
         self.project = projection_func
         self.penalising_func = penalising_func
         self.lmbda = lmbda
+        self.which_loss = 'cvx'
 
 
     def forward(self, times, time_ptr, X, obs_idx, delta_t, T, start_X,
                 n_obs_ot, return_path=False, get_loss=True, until_T=False,
                 M=None, start_M=None, which_loss=None, dim_to=None,
-                predict_labels=None, return_classifier_out=False,
                 return_at_last_obs=False):
         """
         TODO update this string
@@ -1200,5 +1188,5 @@ class NJODE_optimal_projection(NJODE):
 
 
 class NJODE_vertex_approach(NJODE):
-    raise NotImplementedError
+    pass
 

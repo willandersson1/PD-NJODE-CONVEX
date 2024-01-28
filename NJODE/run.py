@@ -5,6 +5,7 @@ code for running the experiments
 """
 
 # =====================================================================================================================
+import traceback
 import numpy as np
 import os
 import pandas as pd
@@ -235,14 +236,15 @@ def parallel_training(params=None, model_ids=None, nb_jobs=1, first_id=None,
                     chat_id=config.CHAT_ID
                 )
         except Exception as e:
+            stack_trace = traceback.format_exc()
             if FLAGS.SEND:
                 SBM.send_notification(
                     text='error in parallel training - \nerror:'
-                         '\n\n{}'.format(e),
+                         '\n\n{}'.format(stack_trace),
                     chat_id=config.ERROR_CHAT_ID
                 )
             else:
-                print('error:\n\n{}'.format(e))
+                print('error:\n\n{}'.format(stack_trace))
 
 
 def main(arg):

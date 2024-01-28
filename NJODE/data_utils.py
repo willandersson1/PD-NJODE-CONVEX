@@ -54,7 +54,7 @@ def get_dataset_overview(training_data_path=training_data_path):
 
 
 def create_dataset(
-        stock_model_name="BlackScholes", 
+        stock_model_name="FBM", 
         hyperparam_dict=None,
         seed=0):
     """

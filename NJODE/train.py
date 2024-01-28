@@ -23,6 +23,7 @@ import matplotlib.colors
 from torch.backends import cudnn
 import gc
 import scipy.stats as stats
+from synthetic_datasets import ReflectedBM
 
 from configs import config
 import models
@@ -435,22 +436,17 @@ def train(
     if 'other_model' not in options:  # take NJODE model if not specified otherwise
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = 'NJODE'
-    elif options['other_model'] == 'cvx':
-        # TODO trigger the other model
-        # TODO add the other needed params
+    elif options['other_model'] == 'cvx_optimal_proj':
         params_dict['projection_func'] = lambda x: x
-        params_dict['penalising_func'] = lambda x: 10
+        def pen_func(Y):
+            lb, ub = dataset_metadata['lb'], dataset_metadata['ub']
+            if lb <= Y <= ub: return torch.tensor(0.0)
+            if Y < lb: return torch.norm(Y - float(lb), 2)
+            if Y > ub: return torch.norm(Y - float(ub), 2)
+        params_dict['penalising_func'] = pen_func
         params_dict['lmbda'] = 1
         model = models.NJODE_optimal_projection(**params_dict)
-        model_name = 'NJODE optimal projection'
-    elif options['other_model'] == "randomizedNJODE":
-        model_name = 'randomizedNJODE'
-        epochs = 1
-        model = models.randomizedNJODE(**params_dict)
-    elif options['other_model'] == "NJmodel":
-        model_name = 'NJmodel'
-        params_dict["hidden_size"] = output_size
-        model = models.NJmodel(**params_dict)
+        model_name = 'cvx_optimal_proj'
     else:
         raise ValueError("Invalid argument for (option) parameter 'other_model'."
                          "Please check docstring for correct use.")
@@ -594,17 +590,13 @@ def train(
                     times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
                     delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
                     return_path=False, get_loss=True, M=M, start_M=start_M)
-            elif options['other_model'] == "randomizedNJODE":
-                linreg_X_, linreg_y_ = model.get_Xy_reg(
+            elif model_name == 'cvx_optimal_proj': # TODO same as for njmodel tho?
+                hT, loss = model(
                     times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
                     delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
-                    return_path=False, M=M, start_M=start_M)
-                linreg_X += linreg_X_
-                linreg_y += linreg_y_
-                loss = torch.tensor(0.)
-                continue
+                    return_path=False, get_loss=True, M=M, start_M=start_M)
             else:
-                raise ValueError
+                raise ValueError("Other model not supported")
             loss.backward()  # compute gradient of each weight regarding loss function
             if gradient_clip is not None:
                 nn.utils.clip_grad_value_(
@@ -649,14 +641,19 @@ def train(
                 true_paths = b["true_paths"]
                 true_mask = b["true_mask"]
 
-                if 'other_model' not in options or \
-                        model_name in ("randomizedNJODE", "NJmodel"):
+                if 'other_model' not in options or model_name == "NJmodel": # TODO this is the same block of code as above? just has c_loss instead of loss I think
                     hT, c_loss = model(
                         times, time_ptr, X, obs_idx, delta_t, T, start_X,
                         n_obs_ot, return_path=False, get_loss=True, M=M,
                         start_M=start_M, which_loss='standard')
+                elif model_name == 'cvx_optimal_proj':
+                    hT, c_loss = model(
+                        times, time_ptr, X, obs_idx, delta_t, T, start_X,
+                        n_obs_ot, return_path=False, get_loss=True, M=M,
+                        start_M=start_M)
                 else:
                     raise ValueError
+                print(c_loss)
                 loss_val += c_loss.detach().numpy()
                 num_obs += 1  # count number of observations
 
@@ -957,6 +954,7 @@ def plot_one_path_with_pred(
                     prob_f = eval(
                         dataset_metadata["X_dependent_observation_prob"])
                     obs_perc = prob_f(true_X[:, :, :])[i]
+                    obs_perc = prob_f(true_X[:, :, :])[i]
                 elif "obs_scheme" in dataset_metadata:
                     obs_scheme = dataset_metadata["obs_scheme"]
                     if obs_scheme["name"] == "NJODE3-Example4.9":
@@ -976,6 +974,7 @@ def plot_one_path_with_pred(
                             if observed_dates[i, k+1] == 1:
                                 last_observation = true_X[i, 0, k+1]
                                 last_obs_time = k+1
+                    obs_perc = prob_f(true_X[:, :, :])[i]                   
                 else:
                     obs_perc = dataset_metadata['obs_perc']
                     obs_perc = np.ones_like(path_t_true_X) * obs_perc
@@ -999,6 +998,9 @@ def plot_one_path_with_pred(
 
         axs[-1].legend()
         plt.xlabel('$t$')
+        if isinstance(stockmodel, ReflectedBM):
+            plt.axhline(y=stockmodel.lb)
+            plt.axhline(y=stockmodel.ub)
         save = os.path.join(save_path, filename.format(i))
         plt.savefig(save, **save_extras)
         plt.close()
