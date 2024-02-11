@@ -25,58 +25,74 @@ from train_switcher import train_switcher
 # FLAGS
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string("params", None, "name of the params list (in config.py) to "
-                                    "use for parallel run")
-flags.DEFINE_string("model_ids", None,
-                    "name of list of model ids (in config.py) to run or list "
-                    "of model ids")
-flags.DEFINE_integer("first_id", None, "First id of the given list / "
-                                       "to start training of")
+flags.DEFINE_string(
+    "params", None, "name of the params list (in config.py) to " "use for parallel run"
+)
+flags.DEFINE_string(
+    "model_ids",
+    None,
+    "name of list of model ids (in config.py) to run or list " "of model ids",
+)
+flags.DEFINE_integer(
+    "first_id", None, "First id of the given list / " "to start training of"
+)
 flags.DEFINE_bool("DEBUG", False, "whether to run parallel in debug mode")
-flags.DEFINE_string("saved_models_path", config.saved_models_path,
-                    "path where the models are saved")
-flags.DEFINE_string("overwrite_params", None,
-                    "name of dict to use for overwriting params")
-flags.DEFINE_string("get_overview", None,
-                    "name of the dict (in config.py) defining input for "
-                    "extras.get_training_overview")
-flags.DEFINE_string("plot_paths", None,
-                    "name of the dict (in config.py) defining input for "
-                    "extras.plot_paths_from_checkpoint")
-flags.DEFINE_string("crossval", None,
-                    "name of the dict (in config.py) defining input for "
-                    "extras.get_cross_validation")
-flags.DEFINE_string("plot_conv_study", None,
-                    "name of the dict (in config.py) defining input for "
-                    "extras.plot_convergence_study")
-flags.DEFINE_string("plot_loss_comparison", None,
-                    "name of the dict (in config.py) defining input for "
-                    "extras.plot_loss_comparison")
-
+flags.DEFINE_string(
+    "saved_models_path", config.saved_models_path, "path where the models are saved"
+)
+flags.DEFINE_string(
+    "overwrite_params", None, "name of dict to use for overwriting params"
+)
+flags.DEFINE_string(
+    "get_overview",
+    None,
+    "name of the dict (in config.py) defining input for "
+    "extras.get_training_overview",
+)
+flags.DEFINE_string(
+    "plot_paths",
+    None,
+    "name of the dict (in config.py) defining input for "
+    "extras.plot_paths_from_checkpoint",
+)
+flags.DEFINE_string(
+    "crossval",
+    None,
+    "name of the dict (in config.py) defining input for " "extras.get_cross_validation",
+)
+flags.DEFINE_string(
+    "plot_conv_study",
+    None,
+    "name of the dict (in config.py) defining input for "
+    "extras.plot_convergence_study",
+)
+flags.DEFINE_string(
+    "plot_loss_comparison",
+    None,
+    "name of the dict (in config.py) defining input for " "extras.plot_loss_comparison",
+)
 
 
 flags.DEFINE_bool("USE_GPU", False, "whether to use GPU for training")
 flags.DEFINE_integer("GPU_NUM", 0, "which GPU to use for training")
-flags.DEFINE_bool("ANOMALY_DETECTION", False,
-                  "whether to run in torch debug mode")
-flags.DEFINE_integer("N_DATASET_WORKERS", 0,
-                     "number of processes that generate batches in parallel")
+flags.DEFINE_bool("ANOMALY_DETECTION", False, "whether to run in torch debug mode")
+flags.DEFINE_integer(
+    "N_DATASET_WORKERS", 0, "number of processes that generate batches in parallel"
+)
 
 # check whether running on computer or server
-if 'ada-' not in socket.gethostname():
+if "ada-" not in socket.gethostname():
     SERVER = False
-    flags.DEFINE_integer("NB_JOBS", 1,
-                         "nb of parallel jobs to run  with joblib")
+    flags.DEFINE_integer("NB_JOBS", 1, "nb of parallel jobs to run  with joblib")
     flags.DEFINE_integer("NB_CPUS", 1, "nb of CPUs used by each training")
 else:
     SERVER = True
-    flags.DEFINE_integer("NB_JOBS", 24,
-                         "nb of parallel jobs to run  with joblib")
+    flags.DEFINE_integer("NB_JOBS", 24, "nb of parallel jobs to run  with joblib")
     flags.DEFINE_integer("NB_CPUS", 2, "nb of CPUs used by each training")
-    matplotlib.use('Agg')
+    matplotlib.use("Agg")
 
 print(socket.gethostname())
-print('SERVER={}'.format(SERVER))
+print("SERVER={}".format(SERVER))
 
 
 # =====================================================================================================================
@@ -92,9 +108,14 @@ def get_parameter_array(param_dict):
     return config.get_parameter_array(param_dict)
 
 
-def parallel_training(params=None, model_ids=None, nb_jobs=1, first_id=None,
-                      saved_models_path=config.saved_models_path,
-                      overwrite_params=None):
+def parallel_training(
+    params=None,
+    model_ids=None,
+    nb_jobs=1,
+    first_id=None,
+    saved_models_path=config.saved_models_path,
+    overwrite_params=None,
+):
     """
     function for parallel training, based on train.train
     :param params: a list of param_dicts, each dict corresponding to one model
@@ -124,17 +145,16 @@ def parallel_training(params=None, model_ids=None, nb_jobs=1, first_id=None,
             changed (e.g. the number of epochs to train longer)
     :return:
     """
-    if params is not None and 'saved_models_path' in params[0]:
-        saved_models_path = params[0]['saved_models_path']
-    model_overview_file_name = '{}model_overview.csv'.format(
-        saved_models_path)
+    if params is not None and "saved_models_path" in params[0]:
+        saved_models_path = params[0]["saved_models_path"]
+    model_overview_file_name = "{}model_overview.csv".format(saved_models_path)
     config.makedirs(saved_models_path)
     if not os.path.exists(model_overview_file_name):
-        df_overview = pd.DataFrame(data=None, columns=['id', 'description'])
+        df_overview = pd.DataFrame(data=None, columns=["id", "description"])
         max_id = 0
     else:
         df_overview = pd.read_csv(model_overview_file_name, index_col=0)
-        max_id = np.max(df_overview['id'].values)
+        max_id = np.max(df_overview["id"].values)
 
     # get model_id, model params etc. for each param
     if model_ids is None and params is None:
@@ -144,75 +164,89 @@ def parallel_training(params=None, model_ids=None, nb_jobs=1, first_id=None,
             model_id = max_id + 1
         else:
             model_id = first_id
-        for i, param in enumerate(params):  # iterate through all specified parameter settings
-            if model_id in df_overview['id'].values:  # resume training if taken id is specified as first model id
-                desc = (df_overview['description'].loc[
-                    df_overview['id'] == model_id]).values[0]
+        for i, param in enumerate(
+            params
+        ):  # iterate through all specified parameter settings
+            if (
+                model_id in df_overview["id"].values
+            ):  # resume training if taken id is specified as first model id
+                desc = (
+                    df_overview["description"].loc[df_overview["id"] == model_id]
+                ).values[0]
                 params_dict = json.loads(desc)
-                params_dict['resume_training'] = True
-                params_dict['model_id'] = model_id
+                params_dict["resume_training"] = True
+                params_dict["model_id"] = model_id
                 if overwrite_params:
                     for k, v in overwrite_params.items():
                         params_dict[k] = v
                     desc = json.dumps(params_dict, sort_keys=True)
-                    df_overview.loc[
-                        df_overview['id'] == model_id, 'description'] = desc
+                    df_overview.loc[df_overview["id"] == model_id, "description"] = desc
                     df_overview.to_csv(model_overview_file_name)
                 params[i] = params_dict
             else:  # if new model id, create new training
                 desc = json.dumps(param, sort_keys=True)
-                df_ov_app = pd.DataFrame([[model_id, desc]],
-                                         columns=['id', 'description'])
-                df_overview = pd.concat([df_overview, df_ov_app],
-                                        ignore_index=True)
+                df_ov_app = pd.DataFrame(
+                    [[model_id, desc]], columns=["id", "description"]
+                )
+                df_overview = pd.concat([df_overview, df_ov_app], ignore_index=True)
                 df_overview.to_csv(model_overview_file_name)
                 params_dict = json.loads(desc)
-                params_dict['resume_training'] = False
-                params_dict['model_id'] = model_id
+                params_dict["resume_training"] = False
+                params_dict["model_id"] = model_id
                 params[i] = params_dict
             model_id += 1
     else:
         params = []
         for model_id in model_ids:
-            if model_id not in df_overview['id'].values:
+            if model_id not in df_overview["id"].values:
                 print("model_id={} does not exist yet -> skip".format(model_id))
             else:
-                desc = (df_overview['description'].loc[
-                    df_overview['id'] == model_id]).values[0]
+                desc = (
+                    df_overview["description"].loc[df_overview["id"] == model_id]
+                ).values[0]
                 params_dict = json.loads(desc)
-                params_dict['model_id'] = model_id
-                params_dict['resume_training'] = True
+                params_dict["model_id"] = model_id
+                params_dict["resume_training"] = True
                 if overwrite_params:
                     for k, v in overwrite_params.items():
                         params_dict[k] = v
                     desc = json.dumps(params_dict, sort_keys=True)
-                    df_overview.loc[
-                        df_overview['id'] == model_id, 'description'] = desc
+                    df_overview.loc[df_overview["id"] == model_id, "description"] = desc
                     df_overview.to_csv(model_overview_file_name)
                 params.append(params_dict)
 
     for param in params:
-        param['parallel'] = True
+        param["parallel"] = True
 
     if FLAGS.DEBUG:
-        results = Parallel(n_jobs=nb_jobs)(delayed(train_switcher)(
-            anomaly_detection=FLAGS.ANOMALY_DETECTION,
-            n_dataset_workers=FLAGS.N_DATASET_WORKERS, use_gpu=FLAGS.USE_GPU,
-            gpu_num=FLAGS.GPU_NUM, nb_cpus=FLAGS.NB_CPUS,
-            **param)
-                                           for param in params)
+        results = Parallel(n_jobs=nb_jobs)(
+            delayed(train_switcher)(
+                anomaly_detection=FLAGS.ANOMALY_DETECTION,
+                n_dataset_workers=FLAGS.N_DATASET_WORKERS,
+                use_gpu=FLAGS.USE_GPU,
+                gpu_num=FLAGS.GPU_NUM,
+                nb_cpus=FLAGS.NB_CPUS,
+                **param,
+            )
+            for param in params
+        )
     else:
         try:
-            results = Parallel(n_jobs=nb_jobs)(delayed(train_switcher)(
-                anomaly_detection=FLAGS.ANOMALY_DETECTION,
-                n_dataset_workers=FLAGS.N_DATASET_WORKERS, use_gpu=FLAGS.USE_GPU,
-                gpu_num=FLAGS.GPU_NUM, nb_cpus=FLAGS.NB_CPUS,
-                **param)
-                                               for param in params)
+            results = Parallel(n_jobs=nb_jobs)(
+                delayed(train_switcher)(
+                    anomaly_detection=FLAGS.ANOMALY_DETECTION,
+                    n_dataset_workers=FLAGS.N_DATASET_WORKERS,
+                    use_gpu=FLAGS.USE_GPU,
+                    gpu_num=FLAGS.GPU_NUM,
+                    nb_cpus=FLAGS.NB_CPUS,
+                    **param,
+                )
+                for param in params
+            )
 
-        except Exception as e:
+        except Exception:
             stack_trace = traceback.format_exc()
-            print('error:\n\n{}'.format(stack_trace))
+            print("error:\n\n{}".format(stack_trace))
 
 
 def main(arg):
@@ -224,44 +258,46 @@ def main(arg):
     model_ids = None
     nb_jobs = FLAGS.NB_JOBS
     if FLAGS.params:
-        params_list = eval("config."+FLAGS.params)
+        params_list = eval("config." + FLAGS.params)
         nb_jobs = min(FLAGS.NB_JOBS, len(params_list))
-        print('combinations: {}'.format(len(params_list)))
+        print("combinations: {}".format(len(params_list)))
     elif FLAGS.model_ids:
         try:
-            model_ids = eval("config."+FLAGS.model_ids)
+            model_ids = eval("config." + FLAGS.model_ids)
         except Exception:
             model_ids = eval(FLAGS.model_ids)
         nb_jobs = min(FLAGS.NB_JOBS, len(model_ids))
-        print('combinations: {}'.format(len(model_ids)))
+        print("combinations: {}".format(len(model_ids)))
     overwrite_params = None
     if FLAGS.overwrite_params:
         try:
-            overwrite_params = eval("config."+FLAGS.overwrite_params)
+            overwrite_params = eval("config." + FLAGS.overwrite_params)
         except Exception:
             overwrite_params = eval(FLAGS.overwrite_params)
     get_training_overview_dict = None
     if FLAGS.get_overview:
-        get_training_overview_dict = eval("config."+FLAGS.get_overview)
+        get_training_overview_dict = eval("config." + FLAGS.get_overview)
     plot_paths_dict = None
     if FLAGS.plot_paths:
-        plot_paths_dict = eval("config."+FLAGS.plot_paths)
+        plot_paths_dict = eval("config." + FLAGS.plot_paths)
     crossval = None
     if FLAGS.crossval:
-        crossval = eval("config."+FLAGS.crossval)
+        crossval = eval("config." + FLAGS.crossval)
     plot_conv_study = None
     if FLAGS.plot_conv_study:
-        plot_conv_study = eval("config."+FLAGS.plot_conv_study)
+        plot_conv_study = eval("config." + FLAGS.plot_conv_study)
     plot_loss_comparison = None
     if FLAGS.plot_loss_comparison:
-        plot_loss_comparison = eval("config."+FLAGS.plot_loss_comparison)
-    print('nb_jobs: {}'.format(nb_jobs))
+        plot_loss_comparison = eval("config." + FLAGS.plot_loss_comparison)
+    print("nb_jobs: {}".format(nb_jobs))
     if params_list is not None or model_ids is not None:
         parallel_training(
-            params=params_list, model_ids=model_ids,
-            first_id=FLAGS.first_id, nb_jobs=nb_jobs,
+            params=params_list,
+            model_ids=model_ids,
+            first_id=FLAGS.first_id,
+            nb_jobs=nb_jobs,
             saved_models_path=FLAGS.saved_models_path,
-            overwrite_params=overwrite_params
+            overwrite_params=overwrite_params,
         )
     if get_training_overview_dict is not None:
         extras.get_training_overview(**get_training_overview_dict)
@@ -274,6 +310,6 @@ def main(arg):
     if plot_loss_comparison is not None:
         extras.plot_loss_comparison(**plot_loss_comparison)
 
-if __name__ == '__main__':
-    app.run(main)
 
+if __name__ == "__main__":
+    app.run(main)

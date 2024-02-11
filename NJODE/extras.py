@@ -5,35 +5,37 @@ code for all additional things, like plotting, getting overviews etc.
 """
 
 
-import pandas as pd
-import numpy as np
-import pdf2image
-import imageio
-import os
 import json
+import os
 import socket
-import matplotlib.colors
 
+import imageio
+import matplotlib.colors
+import numpy as np
+import pandas as pd
+import pdf2image
 from configs import config
 from train_switcher import train_switcher
 
-if 'ada-' not in socket.gethostname():
+if "ada-" not in socket.gethostname():
     SERVER = False
 else:
     SERVER = True
 
 if SERVER:
-    matplotlib.use('Agg')
+    matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 
 
-
-# ==============================================================================
 def plot_loss_diff(
-        path, filename, losses, xlab='epoch',
-        ylab='$[\Psi(Y) - \Psi(\hat{X})]/\Psi(\hat{X})$',
-        save_extras={}, fig_size=None,
+    path,
+    filename,
+    losses,
+    xlab="epoch",
+    ylab="$[\Psi(Y) - \Psi(\hat{X})]/\Psi(\hat{X})$",
+    save_extras={},
+    fig_size=None,
 ):
     """
     function to plot the loss difference
@@ -62,12 +64,18 @@ def plot_loss_diff(
     plt.close()
 
 
-def plot_losses(files, names, time_col='epoch', 
-                col1='eval_loss', col2='optimal_eval_loss', 
-                relative_error=True,
-                filename='plot.pdf', path='./',
-                save_extras={'bbox_inches':'tight', 'pad_inches': 0.01},
-                **kwargs):
+def plot_losses(
+    files,
+    names,
+    time_col="epoch",
+    col1="eval_loss",
+    col2="optimal_eval_loss",
+    relative_error=True,
+    filename="plot.pdf",
+    path="./",
+    save_extras={"bbox_inches": "tight", "pad_inches": 0.01},
+    **kwargs,
+):
     """
     function to plot the loss vs. epoch of trained models
     :param files: list, each element is one path for a loss-file
@@ -101,32 +109,39 @@ def generate_training_progress_gif(model_id, which_path=1):
     :param which_path: int
     """
     path = config.saved_models_path
-    path = os.path.join(path, 'id-{}/plots/'.format(model_id))
+    path = os.path.join(path, "id-{}/plots/".format(model_id))
     filenames = []
     for f in sorted(os.listdir(path)):
-        if 'path-{}.pdf'.format(which_path) in f:
-            print('converting {} to png'.format(f))
+        if "path-{}.pdf".format(which_path) in f:
+            print("converting {} to png".format(f))
             im = pdf2image.convert_from_path(os.path.join(path, f), 100)
-            savepath = os.path.join(path, f[:-3]+'png')
+            savepath = os.path.join(path, f[:-3] + "png")
             for i in im:
-                i.save(savepath, 'PNG')
+                i.save(savepath, "PNG")
             filenames.append(savepath)
     images = []
-    for filename in sorted(filenames,
-                           key=lambda s: int(s.split('epoch-')[1].split('_')[0])):
+    for filename in sorted(
+        filenames, key=lambda s: int(s.split("epoch-")[1].split("_")[0])
+    ):
         print(filename)
         images.append(imageio.imread(filename))
-    imageio.mimsave(os.path.join(path,'training-progress-path-{}.gif'.format(
-        which_path)), images, duration=0.5)
+    imageio.mimsave(
+        os.path.join(path, "training-progress-path-{}.gif".format(which_path)),
+        images,
+        duration=0.5,
+    )
 
 
 def plot_convergence_study(
-        path=config.saved_models_path, ids_from=None,
-        ids_to=None, x_axis="training_size",
-        x_log=False, y_log=False,
-        save_path="{}plots/".format(config.data_path),
-        save_extras={'bbox_inches':'tight', 'pad_inches': 0.01},
-        file_name="conv_study",
+    path=config.saved_models_path,
+    ids_from=None,
+    ids_to=None,
+    x_axis="training_size",
+    x_log=False,
+    y_log=False,
+    save_path="{}plots/".format(config.data_path),
+    save_extras={"bbox_inches": "tight", "pad_inches": 0.01},
+    file_name="conv_study",
 ):
     """
     function to plot the convergence study when network size and number of
@@ -143,12 +158,12 @@ def plot_convergence_study(
     :param save_extras: dict, extra arguments for saving the plots
     :param file_name: str,
     """
-    prop_cycle = plt.rcParams['axes.prop_cycle']        #visual settings
-    colors = prop_cycle.by_key()['color']
+    prop_cycle = plt.rcParams["axes.prop_cycle"]  # visual settings
+    colors = prop_cycle.by_key()["color"]
 
     filename = "{}model_overview.csv".format(path)
     df = pd.read_csv(filename, index_col=0)
-    if ids_from:        #only needed when ids specified
+    if ids_from:  # only needed when ids specified
         df = df.loc[df["id"] >= ids_from]
     if ids_to:
         df = df.loc[df["id"] <= ids_to]
@@ -156,13 +171,12 @@ def plot_convergence_study(
     # extract network size and number training samples
     df["network_size"] = None
     df["training_size"] = None
-    for i in df.index:              #copy parameters from model_overview
+    for i in df.index:  # copy parameters from model_overview
         desc = df.loc[i, "description"]
         param_dict = json.loads(desc)
         training_size = param_dict["training_size"]
         network_size = param_dict["enc_nn"][0][0]
-        df.loc[i, ["network_size",  "training_size"]] = \
-            [network_size, training_size]
+        df.loc[i, ["network_size", "training_size"]] = [network_size, training_size]
 
     # get sets of network size and training size
     n_sizes = sorted(list(set(df["network_size"].values)))
@@ -185,8 +199,7 @@ def plot_convergence_study(
         _stds = []
         for val1 in x_axis_params:
             current_losses = []
-            ids = df.loc[(df[x_axis] == val1) & (df[other_param_name] == val2),
-                         "id"]
+            ids = df.loc[(df[x_axis] == val1) & (df[other_param_name] == val2), "id"]
             for id in ids:
                 file_n = "{}id-{}/metric_id-{}.csv".format(path, id, id)
                 df_metric = pd.read_csv(file_n, index_col=0)
@@ -198,20 +211,27 @@ def plot_convergence_study(
 
     # plotting
     f = plt.figure()
-    ax = f.add_subplot(1,1,1)
+    ax = f.add_subplot(1, 1, 1)
     for i, args in enumerate(zip(means, stds, other_params)):
         mean, std, val2 = args
-        ax.errorbar(x_axis_params, mean, yerr=std,
-                    label="{}={}".format(other_param_name, val2),
-                    ecolor="black", capsize=4, capthick=1, marker=".",
-                    color=colors[i])
+        ax.errorbar(
+            x_axis_params,
+            mean,
+            yerr=std,
+            label="{}={}".format(other_param_name, val2),
+            ecolor="black",
+            capsize=4,
+            capthick=1,
+            marker=".",
+            color=colors[i],
+        )
     plt.xlabel(x_axis)
     plt.ylabel("eval metric")
     plt.legend()
     if x_log:
-        ax.set_xscale('log')
+        ax.set_xscale("log")
     if y_log:
-        ax.set_yscale('log')
+        ax.set_yscale("log")
 
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -220,21 +240,24 @@ def plot_convergence_study(
 
 
 def get_training_overview(
-        path=config.saved_models_path, ids_from=None,
-        ids_to=None,
-        params_extract_desc=('network_size', 'training_size', 'dataset',
-                             'hidden_size'),
-        val_test_params_extract=(("max", "epoch", "epoch", "epochs_trained"),
-                                 ("min", "evaluation_mean_diff",
-                                  "evaluation_mean_diff", "eval_metric_min"),
-                                 ("last", "evaluation_mean_diff",
-                                  "evaluation_mean_diff", "eval_metric_last"),
-                                 ("average", "evaluation_mean_diff",
-                                  "evaluation_mean_diff", "eval_metric_average")
-                                 ),
-        early_stop_after_epoch=0,
-        sortby=None,
-        save_file=None,
+    path=config.saved_models_path,
+    ids_from=None,
+    ids_to=None,
+    params_extract_desc=("network_size", "training_size", "dataset", "hidden_size"),
+    val_test_params_extract=(
+        ("max", "epoch", "epoch", "epochs_trained"),
+        ("min", "evaluation_mean_diff", "evaluation_mean_diff", "eval_metric_min"),
+        ("last", "evaluation_mean_diff", "evaluation_mean_diff", "eval_metric_last"),
+        (
+            "average",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff",
+            "eval_metric_average",
+        ),
+    ),
+    early_stop_after_epoch=0,
+    sortby=None,
+    save_file=None,
 ):
     """
     function to get the important metrics and hyper-params for each model in the
@@ -283,15 +306,15 @@ def get_training_overview(
         values = []
         for param in params_extract_desc:
             try:
-                if param == 'network_size':
+                if param == "network_size":
                     v = param_dict["enc_nn"][0][0]
-                elif param == 'nb_layers':
+                elif param == "nb_layers":
                     v = len(param_dict["enc_nn"])
-                elif 'activation_function' in param:
-                    numb = int(param.split('_')[-1])
-                    v = param_dict["enc_nn"][numb-1][1]
-                elif '-' in param:
-                    p1, p2 = param.split('-')
+                elif "activation_function" in param:
+                    numb = int(param.split("_")[-1])
+                    v = param_dict["enc_nn"][numb - 1][1]
+                elif "-" in param:
+                    p1, p2 = param.split("-")
                     v = param_dict[p1][p2]
                 else:
                     v = param_dict[param]
@@ -304,25 +327,26 @@ def get_training_overview(
         file_n = "{}id-{}/metric_id-{}.csv".format(path, id, id)
         df_metric = pd.read_csv(file_n, index_col=0)
         if early_stop_after_epoch:
-            df_metric = df_metric.loc[df_metric['epoch']>early_stop_after_epoch]
+            df_metric = df_metric.loc[df_metric["epoch"] > early_stop_after_epoch]
 
         if val_test_params_extract:
             for l in val_test_params_extract:
-                if l[0] == 'max':
+                if l[0] == "max":
                     f = np.nanmax
-                elif l[0] == 'min':
+                elif l[0] == "min":
                     f = np.nanmin
 
-                if l[0] in ['min', 'max']:
+                if l[0] in ["min", "max"]:
                     try:
-                        ind = (df_metric.loc[df_metric[l[1]] ==
-                                             f(df_metric[l[1]])]).index[0]
+                        ind = (
+                            df_metric.loc[df_metric[l[1]] == f(df_metric[l[1]])]
+                        ).index[0]
                         df.loc[i, l[3]] = df_metric.loc[ind, l[2]]
                     except Exception:
                         pass
-                elif l[0] == 'last':
+                elif l[0] == "last":
                     df.loc[i, l[3]] = df_metric[l[1]].values[-1]
-                elif l[0] == 'average':
+                elif l[0] == "average":
                     df.loc[i, l[3]] = np.nanmean(df_metric[l[1]])
 
     if sortby:
@@ -332,17 +356,21 @@ def get_training_overview(
     if save_file is not False:
         if save_file is None:
             save_file = "{}training_overview-ids-{}-{}.csv".format(
-                path, ids_from, ids_to)
+                path, ids_from, ids_to
+            )
         df.to_csv(save_file)
 
     return df
 
 
 def plot_paths_from_checkpoint(
-        saved_models_path=config.saved_models_path,
-        model_ids=(1,), which='best', paths_to_plot=(0,), LOB_plot_errors=False,
-        plot_boxplot_only=False,
-        **options
+    saved_models_path=config.saved_models_path,
+    model_ids=(1,),
+    which="best",
+    paths_to_plot=(0,),
+    LOB_plot_errors=False,
+    plot_boxplot_only=False,
+    **options,
 ):
     """
     function to plot paths (using plot_one_path_with_pred) from a saved model
@@ -357,7 +385,7 @@ def plot_paths_from_checkpoint(
     :param options: feed directly to train
     :return:
     """
-    model_overview_file_name = '{}model_overview.csv'.format(saved_models_path)
+    model_overview_file_name = "{}model_overview.csv".format(saved_models_path)
     if not os.path.exists(model_overview_file_name):
         print("No saved model_overview.csv file")
         return 1
@@ -365,44 +393,45 @@ def plot_paths_from_checkpoint(
         df_overview = pd.read_csv(model_overview_file_name, index_col=0)
 
     for model_id in model_ids:
-        if model_id not in df_overview['id'].values:
+        if model_id not in df_overview["id"].values:
             print("model_id={} does not exist yet -> skip".format(model_id))
         else:
-            desc = (df_overview['description'].loc[
-                df_overview['id'] == model_id]).values[0]
+            desc = (
+                df_overview["description"].loc[df_overview["id"] == model_id]
+            ).values[0]
             params_dict = json.loads(desc)
-            params_dict['model_id'] = model_id
-            params_dict['resume_training'] = True
-            params_dict['plot_only'] = True
-            params_dict['paths_to_plot'] = paths_to_plot
-            params_dict['parallel'] = True
-            params_dict['saved_models_path'] = saved_models_path
+            params_dict["model_id"] = model_id
+            params_dict["resume_training"] = True
+            params_dict["plot_only"] = True
+            params_dict["paths_to_plot"] = paths_to_plot
+            params_dict["parallel"] = True
+            params_dict["saved_models_path"] = saved_models_path
             if LOB_plot_errors:
-                params_dict['plot_errors'] = True
+                params_dict["plot_errors"] = True
                 if paths_to_plot is None:
-                    params_dict['plot_only'] = False
+                    params_dict["plot_only"] = False
                 if plot_boxplot_only:
-                    params_dict['plot_boxplot_only'] = True
+                    params_dict["plot_boxplot_only"] = True
                 else:
-                    params_dict['plot_boxplot_only'] = False
+                    params_dict["plot_boxplot_only"] = False
             for key in options:
                 params_dict[key] = options[key]
 
-            if which in ['best', 'both']:
-                params_dict['load_best'] = True
+            if which in ["best", "both"]:
+                params_dict["load_best"] = True
                 train_switcher(**params_dict)
-            if which in ['last', 'both']:
-                params_dict['load_best'] = False
+            if which in ["last", "both"]:
+                params_dict["load_best"] = False
                 train_switcher(**params_dict)
 
 
 def plot_loss_and_metric(
-        model_ids=(1,),
-        save_extras={'bbox_inches': 'tight', 'pad_inches': 0.01},
-        file_name="loss_and_metric-id{}.pdf",
-        time_col='epoch',
-        cols=('train_loss', 'eval_loss', 'evaluation_mean_diff'),
-        names=('train_loss', 'eval_loss', 'eval_metric')
+    model_ids=(1,),
+    save_extras={"bbox_inches": "tight", "pad_inches": 0.01},
+    file_name="loss_and_metric-id{}.pdf",
+    time_col="epoch",
+    cols=("train_loss", "eval_loss", "evaluation_mean_diff"),
+    names=("train_loss", "eval_loss", "eval_metric"),
 ):
     """
     function to plot the losses and metric in one plot with subplots to see
@@ -414,16 +443,17 @@ def plot_loss_and_metric(
     :param cols: list of str, the column names to plot
     :param names: None or list of str, names of the y-labels, None: use cols
     """
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
+    prop_cycle = plt.rcParams["axes.prop_cycle"]
+    colors = prop_cycle.by_key()["color"]
 
     if names is None:
         names = cols
 
     for model_id in model_ids:
         path = os.path.join(
-            config.saved_models_path, "id-{}".format(model_id),
-            "metric_id-{}.csv".format(model_id)
+            config.saved_models_path,
+            "id-{}".format(model_id),
+            "metric_id-{}.csv".format(model_id),
         )
         df = pd.read_csv(path)
         t = df[time_col]
@@ -435,55 +465,74 @@ def plot_loss_and_metric(
         axes[-1].set(xlabel=time_col)
 
         save_path = os.path.join(
-            config.saved_models_path, "id-{}".format(model_id),
-            file_name.format(model_id)
+            config.saved_models_path,
+            "id-{}".format(model_id),
+            file_name.format(model_id),
         )
         plt.savefig(save_path, **save_extras)
         plt.close(fig)
 
 
 def get_cross_validation(
-        params_extract_desc=('dataset', 'network_size', 'dropout_rate',
-                             'hidden_size', 'activation_function_1'),
-        val_test_params_extract=(("min", "eval_metric",
-                                  "test_metric", "test_metric_evaluation_min"),
-                                 ("min", "eval_metric",
-                                  "eval_metric", "eval_metric_min")
-                                 ),
-        target_col=('eval_metric_min', 'test_metric_evaluation_min'),
-        early_stop_after_epoch=0,
-        param_combinations=({'network_size': 50,
-                             'activation_function_1': 'tanh',
-                             'dropout_rate': 0.1,
-                             'hidden_size': 10,
-                             'dataset': 'climate'},
-                            {'network_size': 200,
-                             'activation_function_1': 'tanh',
-                             'dropout_rate': 0.1,
-                             'hidden_size': 10,
-                             'dataset': 'climate'},
-                            {'network_size': 400,
-                             'activation_function_1': 'tanh',
-                             'dropout_rate': 0.1,
-                             'hidden_size': 50,
-                             'dataset': 'climate'},
-                            {'network_size': 50,
-                             'activation_function_1': 'relu',
-                             'dropout_rate': 0.2,
-                             'hidden_size': 50,
-                             'dataset': 'climate'},
-                            {'network_size': 100,
-                             'activation_function_1': 'relu',
-                             'dropout_rate': 0.2,
-                             'hidden_size': 50,
-                             'dataset': 'climate'},
-                            {'network_size': 400,
-                             'activation_function_1': 'relu',
-                             'dropout_rate': 0.2,
-                             'hidden_size': 10,
-                             'dataset': 'climate'}),
-        save_path="{}cross_val.csv",
-        path=config.saved_models_path
+    params_extract_desc=(
+        "dataset",
+        "network_size",
+        "dropout_rate",
+        "hidden_size",
+        "activation_function_1",
+    ),
+    val_test_params_extract=(
+        ("min", "eval_metric", "test_metric", "test_metric_evaluation_min"),
+        ("min", "eval_metric", "eval_metric", "eval_metric_min"),
+    ),
+    target_col=("eval_metric_min", "test_metric_evaluation_min"),
+    early_stop_after_epoch=0,
+    param_combinations=(
+        {
+            "network_size": 50,
+            "activation_function_1": "tanh",
+            "dropout_rate": 0.1,
+            "hidden_size": 10,
+            "dataset": "climate",
+        },
+        {
+            "network_size": 200,
+            "activation_function_1": "tanh",
+            "dropout_rate": 0.1,
+            "hidden_size": 10,
+            "dataset": "climate",
+        },
+        {
+            "network_size": 400,
+            "activation_function_1": "tanh",
+            "dropout_rate": 0.1,
+            "hidden_size": 50,
+            "dataset": "climate",
+        },
+        {
+            "network_size": 50,
+            "activation_function_1": "relu",
+            "dropout_rate": 0.2,
+            "hidden_size": 50,
+            "dataset": "climate",
+        },
+        {
+            "network_size": 100,
+            "activation_function_1": "relu",
+            "dropout_rate": 0.2,
+            "hidden_size": 50,
+            "dataset": "climate",
+        },
+        {
+            "network_size": 400,
+            "activation_function_1": "relu",
+            "dropout_rate": 0.2,
+            "hidden_size": 10,
+            "dataset": "climate",
+        },
+    ),
+    save_path="{}cross_val.csv",
+    path=config.saved_models_path,
 ):
     """
     function to get the cross validation of the climate dataset
@@ -505,7 +554,7 @@ def get_cross_validation(
         params_extract_desc=params_extract_desc,
         val_test_params_extract=val_test_params_extract,
         early_stop_after_epoch=early_stop_after_epoch,
-        save_file="{}test.csv".format(path)
+        save_file="{}test.csv".format(path),
     )
     print(df)
 
@@ -521,21 +570,29 @@ def get_cross_validation(
             data_ += [np.mean(vals), np.std(vals)]
         data.append(data_)
         print(df_)
-    columns = ['param_combination']
+    columns = ["param_combination"]
     for tc in target_col:
-        columns += ['mean_{}'.format(tc), 'std_{}'.format(tc)]
-    df_out = pd.DataFrame(
-        data=data, columns=columns)
+        columns += ["mean_{}".format(tc), "std_{}".format(tc)]
+    df_out = pd.DataFrame(data=data, columns=columns)
     df_out.to_csv(save_path.format(path))
 
     return df_out
 
 
 def plot_loss_comparison(
-        filename, param_combinations, outfile, xcol, ycol, labels=None,
-        xlabel=None, ylabel=None, logx=False, logy=False,
-        save_extras={'bbox_inches': 'tight', 'pad_inches': 0.01},
-        fig_size=None):
+    filename,
+    param_combinations,
+    outfile,
+    xcol,
+    ycol,
+    labels=None,
+    xlabel=None,
+    ylabel=None,
+    logx=False,
+    logy=False,
+    save_extras={"bbox_inches": "tight", "pad_inches": 0.01},
+    fig_size=None,
+):
     """
     function to plot the loss comparison
     Args:
@@ -553,7 +610,7 @@ def plot_loss_comparison(
 
     Returns:
     """
-    linestyles = ['-', '--', '-.', ':']
+    linestyles = ["-", "--", "-.", ":"]
 
     if fig_size is not None:
         f = plt.figure(figsize=fig_size)
@@ -567,15 +624,15 @@ def plot_loss_comparison(
         df_ = df.copy()
         for key in pc:
             df_ = df_.loc[df_[key] == pc[key]]
-        plt.plot(df_[xcol], df_[ycol], label=labels[i], marker='.', ls=ls)
+        plt.plot(df_[xcol], df_[ycol], label=labels[i], marker=".", ls=ls)
     plt.legend()
     if xlabel is not None:
         plt.xlabel(xlabel)
     if ylabel is not None:
         plt.ylabel(ylabel)
     if logx:
-        plt.xscale('log')
+        plt.xscale("log")
     if logy:
-        plt.yscale('log')
+        plt.yscale("log")
     plt.savefig(outfile, **save_extras)
     plt.close()

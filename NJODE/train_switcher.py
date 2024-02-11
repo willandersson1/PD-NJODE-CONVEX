@@ -1,8 +1,9 @@
 """
 author: Florian Krach
 """
-import train
 import synthetic_datasets
+import train
+from configs.config import DATA_DICTS
 
 
 def train_switcher(**params):
@@ -13,18 +14,19 @@ def train_switcher(**params):
             parallel_training
     :return: function call to the correct train function
     """
-    if 'dataset' not in params:
-        if 'data_dict' not in params:
+    if "dataset" not in params:
+        if "data_dict" not in params:
             raise KeyError('the "dataset" needs to be specified')
         else:
             data_dict = params["data_dict"]
             if isinstance(data_dict, str):
-                from configs import config
-                data_dict = eval("config."+data_dict)
+                data_dict = DATA_DICTS[data_dict]
             params["dataset"] = data_dict["model_name"]
-    if params['dataset'] in list(synthetic_datasets.DATASETS) or \
-            'combined' in params['dataset'] or 'FBM[' in params['dataset']:
+    if (
+        params["dataset"] in list(synthetic_datasets.DATASETS)
+        or "combined" in params["dataset"]
+        or "FBM[" in params["dataset"]
+    ):
         return train.train(**params)
     else:
         raise ValueError('the specified "dataset" is not supported')
-

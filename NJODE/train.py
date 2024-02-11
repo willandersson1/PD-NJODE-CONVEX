@@ -4,44 +4,46 @@ author: Florian Krach & Calypso Herrera
 implementation of the training (and evaluation) of NJ-ODE
 """
 
+import gc
+import json  # storing and exchanging data
+import os
+import socket
+import sys
+import time
+
 # =====================================================================================================================
 from typing import List
 
+import data_utils
+import matplotlib  # plots
+import matplotlib.colors
+import models
+import numpy as np  # large arrays and matrices, functions
+import pandas as pd  # data analysis and manipulation
 import torch  # machine learning
 import torch.nn as nn
 import tqdm  # process bar for iterations
-import numpy as np  # large arrays and matrices, functions
-from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
-import os, sys
-import pandas as pd  # data analysis and manipulation
-import json  # storing and exchanging data
-import time
-import socket
-import matplotlib  # plots
-import matplotlib.colors
-from torch.backends import cudnn
-import gc
-import scipy.stats as stats
-from synthetic_datasets import ReflectedBM
-
 from configs import config
-import models
-import data_utils
+from sklearn.model_selection import train_test_split
+from synthetic_datasets import ReflectedBM
+from torch.backends import cudnn
+from torch.utils.data import DataLoader
+
 sys.path.append("../")
 
 # =====================================================================================================================
 # check whether running on computer or server
-if 'ada-' not in socket.gethostname():
+if "ada-" not in socket.gethostname():
     SERVER = False
     N_CPUS = 1
 else:
     SERVER = True
     N_CPUS = 1
-    matplotlib.use('Agg')
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 print(socket.gethostname())
-print('SERVER={}'.format(SERVER))
+print("SERVER={}".format(SERVER))
 
 
 # ==============================================================================
@@ -51,11 +53,16 @@ saved_models_path = config.saved_models_path
 flagfile = config.flagfile
 
 METR_COLUMNS: List[str] = [
-    'epoch', 'train_time', 'eval_time', 'train_loss', 'eval_loss',
-    'optimal_eval_loss']
-default_ode_nn = ((50, 'tanh'), (50, 'tanh'))
-default_readout_nn = ((50, 'tanh'), (50, 'tanh'))
-default_enc_nn = ((50, 'tanh'), (50, 'tanh'))
+    "epoch",
+    "train_time",
+    "eval_time",
+    "train_loss",
+    "eval_loss",
+    "optimal_eval_loss",
+]
+default_ode_nn = ((50, "tanh"), (50, "tanh"))
+default_readout_nn = ((50, "tanh"), (50, "tanh"))
+default_enc_nn = ((50, "tanh"), (50, "tanh"))
 
 ANOMALY_DETECTION = False
 N_DATASET_WORKERS = 0
@@ -65,22 +72,38 @@ USE_GPU = False
 # Functions
 makedirs = config.makedirs
 
+
 def train(
-        anomaly_detection=None, n_dataset_workers=None, use_gpu=None,
-        nb_cpus=None, gpu_num=0,
-        model_id=None, epochs=100, batch_size=100, save_every=1,
-        learning_rate=0.001, test_size=0.2, seed=398,
-        hidden_size=10, bias=True, dropout_rate=0.1,
-        ode_nn=default_ode_nn, readout_nn=default_readout_nn,
-        enc_nn=default_enc_nn, use_rnn=False,
-        solver="euler", weight=0.5, weight_decay=1.,
-        dataset='BlackScholes', dataset_id=None, data_dict=None,
-        plot=True, paths_to_plot=(0,),
-        saved_models_path=saved_models_path,
-        **options
+    anomaly_detection=None,
+    n_dataset_workers=None,
+    use_gpu=None,
+    nb_cpus=None,
+    gpu_num=0,
+    model_id=None,
+    epochs=100,
+    batch_size=100,
+    save_every=1,
+    learning_rate=0.001,
+    test_size=0.2,
+    seed=398,
+    hidden_size=10,
+    bias=True,
+    dropout_rate=0.1,
+    ode_nn=default_ode_nn,
+    readout_nn=default_readout_nn,
+    enc_nn=default_enc_nn,
+    use_rnn=False,
+    solver="euler",
+    weight=0.5,
+    weight_decay=1.0,
+    dataset="BlackScholes",
+    dataset_id=None,
+    data_dict=None,
+    plot=True,
+    paths_to_plot=(0,),
+    saved_models_path=saved_models_path,
+    **options,
 ):
-
-
     """
     training function for NJODE model (models.NJODE),
     the model is automatically saved in the model-save-path with the given
@@ -233,8 +256,8 @@ def train(
     initial_print = "model-id: {}\n".format(model_id)
 
     use_cond_exp = True
-    if 'use_cond_exp' in options:
-        use_cond_exp = options['use_cond_exp']
+    if "use_cond_exp" in options:
+        use_cond_exp = options["use_cond_exp"]
 
     if ANOMALY_DETECTION:
         # allow backward pass to print the traceback of the forward operation
@@ -252,57 +275,57 @@ def train(
     if USE_GPU and torch.cuda.is_available():
         device = torch.device("cuda:{}".format(gpu_num))
         torch.cuda.set_device(gpu_num)
-        initial_print += '\nusing GPU'
+        initial_print += "\nusing GPU"
     else:
         device = torch.device("cpu")
-        initial_print += '\nusing CPU'
+        initial_print += "\nusing CPU"
 
     # load dataset-metadata
     if data_dict is not None:
-        dataset, dataset_id = data_utils._get_dataset_name_id_from_dict(
-            data_dict=data_dict)
+        dataset, dataset_id = data_utils._get_dataset_name_id_from_dict(data_dict)
         dataset_id = int(dataset_id)
     else:
         if dataset is None:
             dataset = data_utils._get_datasetname(time_id=dataset_id)
-        dataset_id = int(data_utils._get_time_id(stock_model_name=dataset,
-                                                 time_id=dataset_id))
-    dataset_metadata = data_utils.load_metadata(stock_model_name=dataset,
-                                                time_id=dataset_id)
-    input_size = dataset_metadata['dimension']
-    dimension = dataset_metadata['dimension']
+        dataset_id = int(
+            data_utils._get_time_id(stock_model_name=dataset, time_id=dataset_id)
+        )
+    dataset_metadata = data_utils.load_metadata(
+        stock_model_name=dataset, time_id=dataset_id
+    )
+    input_size = dataset_metadata["dimension"]
     output_size = input_size
-    T = dataset_metadata['maturity']
-    delta_t = dataset_metadata['dt']  # copy metadata
+    T = dataset_metadata["maturity"]
+    delta_t = dataset_metadata["dt"]  # copy metadata
 
     # load raw data
     train_idx, val_idx = train_test_split(
-        np.arange(dataset_metadata["nb_paths"]), test_size=test_size,
-        random_state=seed)
+        np.arange(dataset_metadata["nb_paths"]), test_size=test_size, random_state=seed
+    )
     # --> get subset of training samples if wanted
-    if 'training_size' in options:
-        train_set_size = options['training_size']
+    if "training_size" in options:
+        train_set_size = options["training_size"]
         if train_set_size < len(train_idx):
-            train_idx = np.random.choice(
-                train_idx, train_set_size, replace=False
-            )
+            train_idx = np.random.choice(train_idx, train_set_size, replace=False)
     data_train = data_utils.IrregularDataset(
-        model_name=dataset, time_id=dataset_id, idx=train_idx)
+        model_name=dataset, time_id=dataset_id, idx=train_idx
+    )
     data_val = data_utils.IrregularDataset(
-        model_name=dataset, time_id=dataset_id, idx=val_idx)
+        model_name=dataset, time_id=dataset_id, idx=val_idx
+    )
     test_data_dict = None
-    if 'test_data_dict' in options:
-        test_data_dict = options['test_data_dict']
+    if "test_data_dict" in options:
+        test_data_dict = options["test_data_dict"]
     if test_data_dict is not None:
-        test_ds, test_ds_id = data_utils._get_dataset_name_id_from_dict(
-            data_dict=test_data_dict)
+        test_ds, test_ds_id = data_utils._get_dataset_name_id_from_dict(test_data_dict)
         test_ds_id = int(test_ds_id)
         data_val = data_utils.IrregularDataset(
-            model_name=test_ds, time_id=test_ds_id, idx=None)
+            model_name=test_ds, time_id=test_ds_id, idx=None
+        )
 
     # get data-loader for training
-    if 'func_appl_X' in options:  # list of functions to apply to the paths in X
-        functions = options['func_appl_X']
+    if "func_appl_X" in options:  # list of functions to apply to the paths in X
+        functions = options["func_appl_X"]
         collate_fn, mult = data_utils.CustomCollateFnGen(functions)
         input_size = input_size * mult
         output_size = output_size * mult
@@ -312,198 +335,243 @@ def train(
         mult = 1
 
     dl = DataLoader(  # class to iterate over training data
-        dataset=data_train, collate_fn=collate_fn,
-        shuffle=True, batch_size=batch_size, num_workers=N_DATASET_WORKERS)
+        dataset=data_train,
+        collate_fn=collate_fn,
+        shuffle=True,
+        batch_size=batch_size,
+        num_workers=N_DATASET_WORKERS,
+    )
     dl_val = DataLoader(  # class to iterate over validation data
-        dataset=data_val, collate_fn=collate_fn,
-        shuffle=False, batch_size=len(data_val), num_workers=N_DATASET_WORKERS)
+        dataset=data_val,
+        collate_fn=collate_fn,
+        shuffle=False,
+        batch_size=len(data_val),
+        num_workers=N_DATASET_WORKERS,
+    )
 
     ylabels = None
-    if 'ylabels' in options:
-        ylabels = options['ylabels']
+    if "ylabels" in options:
+        ylabels = options["ylabels"]
     plot_same_yaxis = False
-    if 'plot_same_yaxis' in options:
-        plot_same_yaxis = options['plot_same_yaxis']
+    if "plot_same_yaxis" in options:
+        plot_same_yaxis = options["plot_same_yaxis"]
     plot_obs_prob = False
-    if 'plot_obs_prob' in options:
+    if "plot_obs_prob" in options:
         plot_obs_prob = options["plot_obs_prob"]
 
     # get optimal eval loss
     #   -> if other functions are applied to X, then only the original X is used
     #      in the computation of the optimal eval loss
     print(dataset_metadata)
-    stockmodel = data_utils._STOCK_MODELS[
-        dataset_metadata['model_name']](**dataset_metadata)
+    stockmodel = data_utils._STOCK_MODELS[dataset_metadata["model_name"]](
+        **dataset_metadata
+    )
     if use_cond_exp:
         opt_eval_loss = compute_optimal_eval_loss(
-            dl_val, stockmodel, delta_t, T, mult=mult)
-        initial_print += '\noptimal eval loss (achieved by true cond exp): ' \
-                     '{:.5f}'.format(opt_eval_loss)
+            dl_val, stockmodel, delta_t, T, mult=mult
+        )
+        initial_print += (
+            "\noptimal eval loss (achieved by true cond exp): " "{:.5f}".format(
+                opt_eval_loss
+            )
+        )
     else:
         opt_eval_loss = np.nan
-    if 'other_model' in options:
+    if "other_model" in options:
         opt_eval_loss = np.nan
 
     # get params_dict
     params_dict = {  # create a dictionary of the wanted parameters
-        'input_size': input_size, 'epochs': epochs,
-        'hidden_size': hidden_size, 'output_size': output_size, 'bias': bias,
-        'ode_nn': ode_nn, 'readout_nn': readout_nn, 'enc_nn': enc_nn,
-        'use_rnn': use_rnn,
-        'dropout_rate': dropout_rate, 'batch_size': batch_size,
-        'solver': solver, 'dataset': dataset, 'dataset_id': dataset_id,
-        'learning_rate': learning_rate, 'test_size': test_size, 'seed': seed,
-        'weight': weight, 'weight_decay': weight_decay,
-        'optimal_eval_loss': opt_eval_loss, 'options': options}
+        "input_size": input_size,
+        "epochs": epochs,
+        "hidden_size": hidden_size,
+        "output_size": output_size,
+        "bias": bias,
+        "ode_nn": ode_nn,
+        "readout_nn": readout_nn,
+        "enc_nn": enc_nn,
+        "use_rnn": use_rnn,
+        "dropout_rate": dropout_rate,
+        "batch_size": batch_size,
+        "solver": solver,
+        "dataset": dataset,
+        "dataset_id": dataset_id,
+        "learning_rate": learning_rate,
+        "test_size": test_size,
+        "seed": seed,
+        "weight": weight,
+        "weight_decay": weight_decay,
+        "optimal_eval_loss": opt_eval_loss,
+        "options": options,
+    }
     desc = json.dumps(params_dict, sort_keys=True)  # serialize to a JSON formatted str
 
     # get overview file
     resume_training = False
-    if ('parallel' in options and options['parallel'] is False) or \
-            ('parallel' not in options):
-        model_overview_file_name = '{}model_overview.csv'.format(
-            saved_models_path
-        )
+    if ("parallel" in options and options["parallel"] is False) or (
+        "parallel" not in options
+    ):
+        model_overview_file_name = "{}model_overview.csv".format(saved_models_path)
         makedirs(saved_models_path)
         if not os.path.exists(model_overview_file_name):
-            df_overview = pd.DataFrame(data=None, columns=['id', 'description'])
+            df_overview = pd.DataFrame(data=None, columns=["id", "description"])
             max_id = 0
         else:
-            df_overview = pd.read_csv(model_overview_file_name, index_col=0)  # read model overview csv file
-            max_id = np.max(df_overview['id'].values)
+            df_overview = pd.read_csv(
+                model_overview_file_name, index_col=0
+            )  # read model overview csv file
+            max_id = np.max(df_overview["id"].values)
 
         # get model_id, model params etc.
         if model_id is None:
             model_id = max_id + 1
-        if model_id not in df_overview['id'].values:  # create new model ID
-            initial_print += '\nnew model_id={}'.format(model_id)
-            df_ov_app = pd.DataFrame([[model_id, desc]],
-                                     columns=['id', 'description'])
+        if model_id not in df_overview["id"].values:  # create new model ID
+            initial_print += "\nnew model_id={}".format(model_id)
+            df_ov_app = pd.DataFrame([[model_id, desc]], columns=["id", "description"])
             df_overview = pd.concat([df_overview, df_ov_app], ignore_index=True)
             df_overview.to_csv(model_overview_file_name)
         else:
-            initial_print += '\nmodel_id already exists -> resume training'  # resume training if model already exists
+            initial_print += "\nmodel_id already exists -> resume training"  # resume training if model already exists
             resume_training = True
-            desc = (df_overview['description'].loc[
-                df_overview['id'] == model_id]).values[0]
+            desc = (
+                df_overview["description"].loc[df_overview["id"] == model_id]
+            ).values[0]
             params_dict = json.loads(desc)
-    initial_print += '\nmodel params:\n{}'.format(desc)
-    if 'resume_training' in options and options['resume_training'] is True:
+    initial_print += "\nmodel params:\n{}".format(desc)
+    if "resume_training" in options and options["resume_training"] is True:
         resume_training = True
 
     # get all needed paths
-    model_path = '{}id-{}/'.format(saved_models_path, model_id)
+    model_path = "{}id-{}/".format(saved_models_path, model_id)
     makedirs(model_path)
-    model_path_save_last = '{}last_checkpoint/'.format(model_path)
-    model_path_save_best = '{}best_checkpoint/'.format(model_path)
+    model_path_save_last = "{}last_checkpoint/".format(model_path)
+    model_path_save_best = "{}best_checkpoint/".format(model_path)
     makedirs(model_path_save_last)
     makedirs(model_path_save_best)
-    model_metric_file = '{}metric_id-{}.csv'.format(model_path, model_id)
-    plot_save_path = '{}plots/'.format(model_path)
-    if 'save_extras' in options:
-        save_extras = options['save_extras']
+    model_metric_file = "{}metric_id-{}.csv".format(model_path, model_id)
+    plot_save_path = "{}plots/".format(model_path)
+    if "save_extras" in options:
+        save_extras = options["save_extras"]
     else:
         save_extras = {}
 
     # get the model & optimizer
-    if 'other_model' not in options:  # take NJODE model if not specified otherwise
+    if "other_model" not in options:  # take NJODE model if not specified otherwise
         model = models.NJODE(**params_dict)  # get NJODE model class from
-        model_name = 'NJODE'
-    elif options['other_model'] == 'cvx_optimal_proj':
+    elif options["other_model"] == "cvx_optimal_proj":
         # TODO this is all basically placeholder rn
-        params_dict['projection_func'] = lambda x: x
+        params_dict["projection_func"] = lambda x: x
+
         def pen_func(Y):
-            lb, ub = dataset_metadata['lb'], dataset_metadata['ub']
-            if lb <= Y <= ub: return torch.tensor(0.0)
-            if Y < lb: return torch.norm(Y - float(lb), 2)
-            if Y > ub: return torch.norm(Y - float(ub), 2)
-        params_dict['penalising_func'] = pen_func
-        params_dict['lmbda'] = 1
+            lb, ub = dataset_metadata["lb"], dataset_metadata["ub"]
+            if lb <= Y <= ub:
+                return torch.tensor(0.0)
+            if Y < lb:
+                return torch.norm(Y - float(lb), 2)
+            if Y > ub:
+                return torch.norm(Y - float(ub), 2)
+
+        params_dict["penalising_func"] = pen_func
+        params_dict["lmbda"] = 1
         model = models.NJODE_optimal_projection(**params_dict)
-        model_name = 'cvx_optimal_proj'
     else:
-        raise ValueError("Invalid argument for (option) parameter 'other_model'."
-                         "Please check docstring for correct use.")
+        raise ValueError(
+            "Invalid argument for (option) parameter 'other_model'."
+            "Please check docstring for correct use."
+        )
 
     model.to(device)  # pass model to CPU/GPU
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=learning_rate, weight_decay=0.0005)
+        model.parameters(), lr=learning_rate, weight_decay=0.0005
+    )
     gradient_clip = None
-    if 'gradient_clip' in options:
+    if "gradient_clip" in options:
         gradient_clip = options["gradient_clip"]
 
     # load saved model if wanted/possible
     best_eval_loss = np.infty
-    if 'evaluate' in options and options['evaluate']:
-        metr_columns = METR_COLUMNS + ['evaluation_mean_diff']
+    if "evaluate" in options and options["evaluate"]:
+        metr_columns = METR_COLUMNS + ["evaluation_mean_diff"]
     else:
         metr_columns = METR_COLUMNS
     if resume_training:
-        initial_print += '\nload saved model ...'
+        initial_print += "\nload saved model ..."
         try:
-            if 'load_best' in options and options['load_best']:
-                models.get_ckpt_model(model_path_save_best, model, optimizer,
-                                      device)
+            if "load_best" in options and options["load_best"]:
+                models.get_ckpt_model(model_path_save_best, model, optimizer, device)
             else:
-                models.get_ckpt_model(model_path_save_last, model, optimizer,
-                                      device)
+                models.get_ckpt_model(model_path_save_last, model, optimizer, device)
             df_metric = pd.read_csv(model_metric_file, index_col=0)
-            best_eval_loss = np.min(df_metric['eval_loss'].values)
+            best_eval_loss = np.min(df_metric["eval_loss"].values)
             model.epoch += 1
             model.weight_decay_step()
-            initial_print += '\nepoch: {}, weight: {}'.format(
-                model.epoch, model.weight)
+            initial_print += "\nepoch: {}, weight: {}".format(model.epoch, model.weight)
         except Exception as e:
-            initial_print += '\nloading model failed -> initiate new model'
-            initial_print += '\nException:\n{}'.format(e)
+            initial_print += "\nloading model failed -> initiate new model"
+            initial_print += "\nException:\n{}".format(e)
             resume_training = False
     if not resume_training:
-        initial_print += '\ninitiate new model ...'
+        initial_print += "\ninitiate new model ..."
         df_metric = pd.DataFrame(columns=metr_columns)
 
     # ---------- plot only option ------------
-    if 'plot_only' in options and options['plot_only']:
+    if "plot_only" in options and options["plot_only"]:
         for i, b in enumerate(dl_val):
             batch = b
         model.epoch -= 1
-        initial_print += '\nplotting ...'
-        plot_filename = 'demo-plot_epoch-{}'.format(model.epoch)
-        plot_filename = plot_filename + '_path-{}.pdf'
+        initial_print += "\nplotting ..."
+        plot_filename = "demo-plot_epoch-{}".format(model.epoch)
+        plot_filename = plot_filename + "_path-{}.pdf"
         curr_opt_loss = plot_one_path_with_pred(
-            device, model, batch, stockmodel, delta_t, T,
-            path_to_plot=paths_to_plot, save_path=plot_save_path,
-            filename=plot_filename, save_extras=save_extras, ylabels=ylabels,
-            same_yaxis=plot_same_yaxis, plot_obs_prob=plot_obs_prob,
-            dataset_metadata=dataset_metadata)
-        initial_print += '\noptimal eval-loss (with current weight={:.5f}): ' \
-                         '{:.5f}'.format(model.weight, curr_opt_loss)
+            device,
+            model,
+            batch,
+            stockmodel,
+            delta_t,
+            T,
+            path_to_plot=paths_to_plot,
+            save_path=plot_save_path,
+            filename=plot_filename,
+            save_extras=save_extras,
+            ylabels=ylabels,
+            same_yaxis=plot_same_yaxis,
+            plot_obs_prob=plot_obs_prob,
+            dataset_metadata=dataset_metadata,
+        )
+        initial_print += (
+            "\noptimal eval-loss (with current weight={:.5f}): " "{:.5f}".format(
+                model.weight, curr_opt_loss
+            )
+        )
         print(initial_print)
         return 0
 
     # ---------------- TRAINING ----------------
-    if model.epoch <= epochs:  # check if it already trained the requested number of epochs
-        initial_print += '\n\nmodel overview:'
+    if (
+        model.epoch <= epochs
+    ):  # check if it already trained the requested number of epochs
+        initial_print += "\n\nmodel overview:"
         print(initial_print)
-        print(model, '\n')
+        print(model, "\n")
 
         # compute number of parameters
         nr_params = 0
         for name, param in model.named_parameters():
             skip = False
-            for p_name in ['gru_debug', 'classification_model']:
+            for p_name in ["gru_debug", "classification_model"]:
                 if p_name in name:
                     skip = True
             if not skip:
                 nr_params += param.nelement()  # count number of parameters
-        print('# parameters={}\n'.format(nr_params))
+        print("# parameters={}\n".format(nr_params))
 
         # compute number of trainable params
         nr_trainable_params = 0
         for pg in optimizer.param_groups:
-            for p in pg['params']:
+            for p in pg["params"]:
                 nr_trainable_params += p.nelement()
-        print('# trainable parameters={}\n'.format(nr_trainable_params))
-        print('start training ...')
+        print("# trainable parameters={}\n".format(nr_trainable_params))
+        print("start training ...")
 
     metric_app = []
     while model.epoch <= epochs:
@@ -526,14 +594,23 @@ def train(
             n_obs_ot = b["n_obs_ot"].to(device)
 
             hT, loss = model(
-                times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
-                delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
-                return_path=False, get_loss=True, M=M, start_M=start_M)
-            
+                times=times,
+                time_ptr=time_ptr,
+                X=X,
+                obs_idx=obs_idx,
+                delta_t=delta_t,
+                T=T,
+                start_X=start_X,
+                n_obs_ot=n_obs_ot,
+                return_path=False,
+                get_loss=True,
+                M=M,
+                start_M=start_M,
+            )
+
             loss.backward()
             if gradient_clip is not None:
-                nn.utils.clip_grad_value_(
-                    model.parameters(), clip_value=gradient_clip)
+                nn.utils.clip_grad_value_(model.parameters(), clip_value=gradient_clip)
             optimizer.step()
             if ANOMALY_DETECTION:
                 print(r"current loss: {}".format(loss.detach().numpy()))
@@ -570,25 +647,45 @@ def train(
                 true_mask = b["true_mask"]
 
                 hT, c_loss = model(
-                    times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                    n_obs_ot, return_path=False, get_loss=True, M=M,
-                    start_M=start_M)
+                    times,
+                    time_ptr,
+                    X,
+                    obs_idx,
+                    delta_t,
+                    T,
+                    start_X,
+                    n_obs_ot,
+                    return_path=False,
+                    get_loss=True,
+                    M=M,
+                    start_M=start_M,
+                )
 
                 loss_val += c_loss.detach().numpy()
                 num_obs += 1  # count number of observations
 
                 # mean squared difference evaluation
-                if 'evaluate' in options and options['evaluate']:
+                if "evaluate" in options and options["evaluate"]:
                     if use_cond_exp:
                         true_paths = None
                         true_mask = None
                     _eval_msd = model.evaluate(
-                        times=times, time_ptr=time_ptr, X=X,
-                        obs_idx=obs_idx, delta_t=delta_t, T=T,
-                        start_X=start_X, n_obs_ot=n_obs_ot,
-                        stockmodel=stockmodel, return_paths=False, M=M,
-                        start_M=start_M, true_paths=true_paths,
-                        true_mask=true_mask, mult=mult)
+                        times=times,
+                        time_ptr=time_ptr,
+                        X=X,
+                        obs_idx=obs_idx,
+                        delta_t=delta_t,
+                        T=T,
+                        start_X=start_X,
+                        n_obs_ot=n_obs_ot,
+                        stockmodel=stockmodel,
+                        return_paths=False,
+                        M=M,
+                        start_M=start_M,
+                        true_paths=true_paths,
+                        true_mask=true_mask,
+                        mult=mult,
+                    )
                     eval_msd += _eval_msd
 
             eval_time = time.time() - t
@@ -596,62 +693,94 @@ def train(
             loss_val_corrected /= num_obs
             eval_msd = eval_msd / num_obs
             train_loss = loss.detach().numpy()
-            print_str = "epoch {}, weight={:.5f}, train-loss={:.5f}, " \
-                        "optimal-eval-loss={:.5f}, eval-loss={:.5f}, ".format(
-                model.epoch, model.weight, train_loss, opt_eval_loss, loss_val)
+            print_str = (
+                "epoch {}, weight={:.5f}, train-loss={:.5f}, "
+                "optimal-eval-loss={:.5f}, eval-loss={:.5f}, ".format(
+                    model.epoch, model.weight, train_loss, opt_eval_loss, loss_val
+                )
+            )
             if mult is not None and mult > 1:
-                print_str += "\ncorrected(i.e. without additional dims of " \
-                             "funct_appl_X)-eval-loss={:.5f}, ".format(
-                    loss_val_corrected)
+                print_str += (
+                    "\ncorrected(i.e. without additional dims of "
+                    "funct_appl_X)-eval-loss={:.5f}, ".format(loss_val_corrected)
+                )
             print(print_str)
-        if 'evaluate' in options and options['evaluate']:
-            metric_app.append([model.epoch, train_time, eval_time, train_loss,
-                               loss_val, opt_eval_loss, eval_msd])
-            print("evaluation mean square difference={:.5f}".format(
-                eval_msd))
+        if "evaluate" in options and options["evaluate"]:
+            metric_app.append(
+                [
+                    model.epoch,
+                    train_time,
+                    eval_time,
+                    train_loss,
+                    loss_val,
+                    opt_eval_loss,
+                    eval_msd,
+                ]
+            )
+            print("evaluation mean square difference={:.5f}".format(eval_msd))
         else:
-            metric_app.append([model.epoch, train_time, eval_time, train_loss,
-                               loss_val, opt_eval_loss])
+            metric_app.append(
+                [
+                    model.epoch,
+                    train_time,
+                    eval_time,
+                    train_loss,
+                    loss_val,
+                    opt_eval_loss,
+                ]
+            )
 
         # save model
         if model.epoch % save_every == 0:
             if plot:
-                print('plotting ...')
-                plot_filename = 'epoch-{}'.format(model.epoch)
-                plot_filename = plot_filename + '_path-{}.pdf'
+                print("plotting ...")
+                plot_filename = "epoch-{}".format(model.epoch)
+                plot_filename = plot_filename + "_path-{}.pdf"
                 curr_opt_loss = plot_one_path_with_pred(
-                    device=device, model=model, batch=batch,
-                    stockmodel=stockmodel, delta_t=delta_t, T=T,
-                    path_to_plot=paths_to_plot, save_path=plot_save_path,
-                    filename=plot_filename, save_extras=save_extras,
-                    ylabels=ylabels, use_cond_exp=use_cond_exp,
-                    same_yaxis=plot_same_yaxis, plot_obs_prob=plot_obs_prob,
-                    dataset_metadata=dataset_metadata)
-                print('optimal eval-loss (with current weight={:.5f}): '
-                      '{:.5f}'.format(model.weight, curr_opt_loss))
-            print('save model ...')
+                    device=device,
+                    model=model,
+                    batch=batch,
+                    stockmodel=stockmodel,
+                    delta_t=delta_t,
+                    T=T,
+                    path_to_plot=paths_to_plot,
+                    save_path=plot_save_path,
+                    filename=plot_filename,
+                    save_extras=save_extras,
+                    ylabels=ylabels,
+                    use_cond_exp=use_cond_exp,
+                    same_yaxis=plot_same_yaxis,
+                    plot_obs_prob=plot_obs_prob,
+                    dataset_metadata=dataset_metadata,
+                )
+                print(
+                    "optimal eval-loss (with current weight={:.5f}): " "{:.5f}".format(
+                        model.weight, curr_opt_loss
+                    )
+                )
+            print("save model ...")
             df_m_app = pd.DataFrame(data=metric_app, columns=metr_columns)
             df_metric = pd.concat([df_metric, df_m_app], ignore_index=True)
             df_metric.to_csv(model_metric_file)
-            models.save_checkpoint(model, optimizer, model_path_save_last,
-                                   model.epoch)
+            models.save_checkpoint(model, optimizer, model_path_save_last, model.epoch)
             metric_app = []
-            print('saved!')
+            print("saved!")
         if loss_val < best_eval_loss:
-            print('save new best model: last-best-loss: {:.5f}, '
-                  'new-best-loss: {:.5f}, epoch: {}'.format(
-                best_eval_loss, loss_val, model.epoch))
+            print(
+                "save new best model: last-best-loss: {:.5f}, "
+                "new-best-loss: {:.5f}, epoch: {}".format(
+                    best_eval_loss, loss_val, model.epoch
+                )
+            )
             df_m_app = pd.DataFrame(data=metric_app, columns=metr_columns)
             df_metric = pd.concat([df_metric, df_m_app], ignore_index=True)
             df_metric.to_csv(model_metric_file)
-            models.save_checkpoint(model, optimizer, model_path_save_last,
-                                   model.epoch)
-            models.save_checkpoint(model, optimizer, model_path_save_best,
-                                   model.epoch)
+            models.save_checkpoint(model, optimizer, model_path_save_last, model.epoch)
+            models.save_checkpoint(model, optimizer, model_path_save_best, model.epoch)
             metric_app = []
             best_eval_loss = loss_val
-            print('saved!')
-        print("-"*100)
+            print("saved!")
+        print("-" * 100)
 
         model.epoch += 1
         model.weight_decay_step()
@@ -687,17 +816,28 @@ def compute_optimal_eval_loss(dl_val, stockmodel, delta_t, T, mult=None):
             M = M.detach().numpy()
         num_obs += 1
         opt_loss += stockmodel.get_optimal_loss(
-            times, time_ptr, X, obs_idx, delta_t, T, start_X, n_obs_ot, M=M,
-            mult=mult)
+            times, time_ptr, X, obs_idx, delta_t, T, start_X, n_obs_ot, M=M, mult=mult
+        )
     return opt_loss / num_obs
 
 
 def plot_one_path_with_pred(
-        device, model, batch, stockmodel, delta_t, T,
-        path_to_plot=(0,), save_path='', filename='plot_{}.pdf', model_name='our model',
-        ylabels=None, save_extras={'bbox_inches': 'tight', 'pad_inches': 0.01},
-        use_cond_exp=True, same_yaxis=False,
-        plot_obs_prob=False, dataset_metadata=None,
+    device,
+    model,
+    batch,
+    stockmodel,
+    delta_t,
+    T,
+    path_to_plot=(0,),
+    save_path="",
+    filename="plot_{}.pdf",
+    model_name="our model",
+    ylabels=None,
+    save_extras={"bbox_inches": "tight", "pad_inches": 0.01},
+    use_cond_exp=True,
+    same_yaxis=False,
+    plot_obs_prob=False,
+    dataset_metadata=None,
 ):
     """
     plot one path of the stockmodel together with optimal cond. exp. and its
@@ -730,9 +870,8 @@ def plot_one_path_with_pred(
         used dataset to extract the observation probability
     :return: optimal loss
     """
-    prop_cycle = plt.rcParams['axes.prop_cycle']  # change style of plot?
-    colors = prop_cycle.by_key()['color']
-    std_color = list(matplotlib.colors.to_rgb(colors[1])) + [0.5]
+    prop_cycle = plt.rcParams["axes.prop_cycle"]  # change style of plot?
+    colors = prop_cycle.by_key()["color"]
 
     makedirs(save_path)  # create a directory
 
@@ -751,24 +890,41 @@ def plot_one_path_with_pred(
     true_X = batch["true_paths"]
     bs, dim, time_steps = true_X.shape
     true_M = batch["true_mask"]
-    observed_dates = batch['observed_dates']
-    path_t_true_X = np.linspace(0., T, int(np.round(T / delta_t)) + 1)
+    observed_dates = batch["observed_dates"]
+    path_t_true_X = np.linspace(0.0, T, int(np.round(T / delta_t)) + 1)
 
     model.eval()  # put model in evaluation mode
     res = model.get_pred(
-        times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx, delta_t=delta_t,
-        T=T, start_X=start_X, M=M, start_M=start_M)
-    path_y_pred = res['pred'].detach().numpy()
-    path_t_pred = res['pred_t']
+        times=times,
+        time_ptr=time_ptr,
+        X=X,
+        obs_idx=obs_idx,
+        delta_t=delta_t,
+        T=T,
+        start_X=start_X,
+        M=M,
+        start_M=start_M,
+    )
+    path_y_pred = res["pred"].detach().numpy()
+    path_t_pred = res["pred_t"]
 
     if use_cond_exp:
         if M is not None:
             M = M.detach().numpy()
         opt_loss, path_t_true, path_y_true = stockmodel.compute_cond_exp(
-            times, time_ptr, X.detach().numpy(), obs_idx.detach().numpy(),
-            delta_t, T, start_X.detach().numpy(), n_obs_ot.detach().numpy(),
-            return_path=True, get_loss=True, weight=model.weight,
-            M=M,)
+            times,
+            time_ptr,
+            X.detach().numpy(),
+            obs_idx.detach().numpy(),
+            delta_t,
+            T,
+            start_X.detach().numpy(),
+            n_obs_ot.detach().numpy(),
+            return_path=True,
+            get_loss=True,
+            weight=model.weight,
+            M=M,
+        )
     else:
         opt_loss = 0
 
@@ -782,29 +938,37 @@ def plot_one_path_with_pred(
             path_X_obs = []
             for k, od in enumerate(observed_dates[i]):
                 if od == 1:
-                    if true_M is None or (true_M is not None and
-                                          true_M[i, j, k]==1):
+                    if true_M is None or (true_M is not None and true_M[i, j, k] == 1):
                         path_t_obs.append(path_t_true_X[k])
                         path_X_obs.append(true_X[i, j, k])
             path_t_obs = np.array(path_t_obs)
             path_X_obs = np.array(path_X_obs)
 
-            axs[j].plot(path_t_true_X, true_X[i, j, :], label='true path',
-                        color=colors[0])
-            axs[j].scatter(path_t_obs, path_X_obs, label='observed',
-                            color=colors[0])
-            axs[j].plot(path_t_pred, path_y_pred[:, i, j],
-                        label=model_name, color=colors[1])
+            axs[j].plot(
+                path_t_true_X, true_X[i, j, :], label="true path", color=colors[0]
+            )
+            axs[j].scatter(path_t_obs, path_X_obs, label="observed", color=colors[0])
+            axs[j].plot(
+                path_t_pred, path_y_pred[:, i, j], label=model_name, color=colors[1]
+            )
             if use_cond_exp:
-                axs[j].plot(path_t_true, path_y_true[:, i, j],
-                            label='true conditional expectation',
-                            linestyle=':', color=colors[2])
+                axs[j].plot(
+                    path_t_true,
+                    path_y_true[:, i, j],
+                    label="true conditional expectation",
+                    linestyle=":",
+                    color=colors[2],
+                )
             if plot_obs_prob and dataset_metadata is not None:
                 ax2 = axs[j].twinx()
-                obs_perc = dataset_metadata['obs_perc']
+                obs_perc = dataset_metadata["obs_perc"]
                 obs_perc = np.ones_like(path_t_true_X) * obs_perc
-                ax2.plot(path_t_true_X, obs_perc, color="red",
-                         label="observation probability")
+                ax2.plot(
+                    path_t_true_X,
+                    obs_perc,
+                    color="red",
+                    label="observation probability",
+                )
                 ax2.set_ylim(-0.1, 1.1)
                 ax2.set_ylabel("observation probability")
                 axs[j].set_ylabel("$X$")
@@ -815,11 +979,11 @@ def plot_one_path_with_pred(
             if same_yaxis:
                 low = np.min(true_X[i, :, :])
                 high = np.max(true_X[i, :, :])
-                eps = (high - low)*0.05
-                axs[j].set_ylim([low-eps, high+eps])
+                eps = (high - low) * 0.05
+                axs[j].set_ylim([low - eps, high + eps])
 
         axs[-1].legend()
-        plt.xlabel('$t$')
+        plt.xlabel("$t$")
         if isinstance(stockmodel, ReflectedBM):
             plt.axhline(y=stockmodel.lb)
             plt.axhline(y=stockmodel.ub)

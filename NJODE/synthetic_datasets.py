@@ -4,13 +4,14 @@ author: Florian Krach & Calypso Herrera
 code to generate synthetic data from stock-model SDEs
 """
 
-# ==============================================================================
-from math import sqrt, exp, pi, erf, isclose
-import numpy as np
-from scipy.integrate import quad
-import matplotlib.pyplot as plt
 import copy
+from math import erf, exp, isclose, pi, sqrt
+
+import matplotlib.pyplot as plt
+import numpy as np
 from fbm import fgn
+from scipy.integrate import quad
+
 
 # ==============================================================================
 # CLASSES
@@ -20,8 +21,9 @@ class StockModel:
     amongst all of them, some need to be defined individually
     """
 
-    def __init__(self, drift, volatility, S0, nb_paths, nb_steps,
-                 maturity, sine_coeff, **kwargs):
+    def __init__(
+        self, drift, volatility, S0, nb_paths, nb_steps, maturity, sine_coeff, **kwargs
+    ):
         self.drift = drift
         self.volatility = volatility
         self.S0 = S0
@@ -53,11 +55,23 @@ class StockModel:
         """
         raise ValueError("not implemented yet")
 
-    def compute_cond_exp(self, times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                         n_obs_ot, return_path=True, get_loss=False,
-                         weight=0.5, store_and_use_stored=True,
-                         start_time=None,
-                         **kwargs):
+    def compute_cond_exp(
+        self,
+        times,
+        time_ptr,
+        X,
+        obs_idx,
+        delta_t,
+        T,
+        start_X,
+        n_obs_ot,
+        return_path=True,
+        get_loss=False,
+        weight=0.5,
+        store_and_use_stored=True,
+        start_time=None,
+        **kwargs,
+    ):
         """
         compute conditional expectation similar to computing the prediction in
         the model.NJODE.forward
@@ -104,17 +118,17 @@ class StockModel:
                 path_t = []
                 path_y = []
             else:
-                path_t = [0.]
+                path_t = [0.0]
                 path_y = [y]
 
         for i, obs_time in enumerate(times):
             # the following is needed for the combined stock model datasets
-            if obs_time > T + 1e-10*delta_t:
+            if obs_time > T + 1e-10 * delta_t:
                 break
             if obs_time <= current_time:
                 continue
             # Calculate conditional expectation stepwise
-            while current_time < (obs_time - 1e-10*delta_t):
+            while current_time < (obs_time - 1e-10 * delta_t):
                 if current_time < obs_time - delta_t:
                     delta_t_ = delta_t
                 else:
@@ -141,10 +155,14 @@ class StockModel:
             Y = y
 
             if get_loss:
-                loss = loss + compute_loss(X_obs=X_obs, Y_obs=Y[i_obs],
-                                           Y_obs_bj=Y_bj[i_obs],
-                                           n_obs_ot=n_obs_ot[i_obs],
-                                           batch_size=batch_size, weight=weight)
+                loss = loss + compute_loss(
+                    X_obs=X_obs,
+                    Y_obs=Y[i_obs],
+                    Y_obs_bj=Y_bj[i_obs],
+                    n_obs_ot=n_obs_ot[i_obs],
+                    batch_size=batch_size,
+                    weight=weight,
+                )
 
             if return_path:
                 path_t.append(obs_time)
@@ -176,8 +194,20 @@ class StockModel:
         else:
             return loss
 
-    def get_optimal_loss(self, times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                         n_obs_ot, weight=0.5, M=None, mult=None):
+    def get_optimal_loss(
+        self,
+        times,
+        time_ptr,
+        X,
+        obs_idx,
+        delta_t,
+        T,
+        start_X,
+        n_obs_ot,
+        weight=0.5,
+        M=None,
+        mult=None,
+    ):
         if mult is not None and mult > 1:
             bs, dim = start_X.shape
             _dim = round(dim / mult)
@@ -187,9 +217,20 @@ class StockModel:
                 M = M[:, :_dim]
 
         loss, _, _ = self.compute_cond_exp(
-            times, time_ptr, X, obs_idx, delta_t, T, start_X, n_obs_ot,
-            return_path=True, get_loss=True, weight=weight, M=M)
-        
+            times,
+            time_ptr,
+            X,
+            obs_idx,
+            delta_t,
+            T,
+            start_X,
+            n_obs_ot,
+            return_path=True,
+            get_loss=True,
+            weight=weight,
+            M=M,
+        )
+
         return loss
 
 
@@ -198,12 +239,19 @@ class FracBM(StockModel):
     Implementing FBM via FBM package
     """
 
-    def __init__(self, nb_paths, nb_steps, S0, maturity, hurst,
-                 method="daviesharte", **kwargs):
+    def __init__(
+        self, nb_paths, nb_steps, S0, maturity, hurst, method="daviesharte", **kwargs
+    ):
         """Instantiate the FBM"""
         super().__init__(
-            drift=None, volatility=None, S0=S0, nb_paths=nb_paths,
-            nb_steps=nb_steps, maturity=maturity, sine_coeff=None,)
+            drift=None,
+            volatility=None,
+            S0=S0,
+            nb_paths=nb_paths,
+            nb_steps=nb_steps,
+            maturity=maturity,
+            sine_coeff=None,
+        )
         self.nb_paths = nb_paths
         self.nb_steps = nb_steps
         self.S0 = S0
@@ -216,28 +264,45 @@ class FracBM(StockModel):
         self.path_y = None
 
     def r_H(self, t, s):
-        return 0.5 * (t**(2*self.hurst) + s**(2*self.hurst) -
-                      np.abs(t-s)**(2*self.hurst))
+        return 0.5 * (
+            t ** (2 * self.hurst)
+            + s ** (2 * self.hurst)
+            - np.abs(t - s) ** (2 * self.hurst)
+        )
 
     def get_cov_mat(self, times):
-        m = np.array(times).reshape((-1,1)).repeat(len(times), axis=1)
+        m = np.array(times).reshape((-1, 1)).repeat(len(times), axis=1)
         return self.r_H(m, np.transpose(m))
 
     def next_cond_exp(self, y, delta_t, current_t):
-        t = current_t+delta_t
+        t = current_t + delta_t
         next_y = np.zeros_like(y)
         for ii in range(y.shape[0]):
             if self.obs_cov_mat_inv[ii] is not None:
                 r = self.r_H(np.array(self.observed_t[ii]), t)
-                next_y[ii] = np.dot(r, np.matmul(
-                    self.obs_cov_mat_inv[ii], np.array(self.observed_X[ii])))
+                next_y[ii] = np.dot(
+                    r,
+                    np.matmul(self.obs_cov_mat_inv[ii], np.array(self.observed_X[ii])),
+                )
         return next_y
 
-    def compute_cond_exp(self, times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                         n_obs_ot, return_path=True, get_loss=False,
-                         weight=0.5, store_and_use_stored=True,
-                         start_time=None,
-                         **kwargs):
+    def compute_cond_exp(
+        self,
+        times,
+        time_ptr,
+        X,
+        obs_idx,
+        delta_t,
+        T,
+        start_X,
+        n_obs_ot,
+        return_path=True,
+        get_loss=False,
+        weight=0.5,
+        store_and_use_stored=True,
+        start_time=None,
+        **kwargs,
+    ):
         """
         Compute conditional expectation
         :param times: np.array, of observation times
@@ -298,7 +363,7 @@ class FracBM(StockModel):
                 path_t = []
                 path_y = []
             else:
-                path_t = [0.]
+                path_t = [0.0]
                 path_y = [y]
 
         for i, obs_time in enumerate(times):
@@ -338,9 +403,13 @@ class FracBM(StockModel):
 
             if get_loss:
                 loss = loss + compute_loss(
-                    X_obs=X_obs, Y_obs=Y[i_obs], Y_obs_bj=Y_bj[i_obs],
-                    n_obs_ot=n_obs_ot[i_obs], batch_size=batch_size,
-                    weight=weight)
+                    X_obs=X_obs,
+                    Y_obs=Y[i_obs],
+                    Y_obs_bj=Y_bj[i_obs],
+                    n_obs_ot=n_obs_ot[i_obs],
+                    batch_size=batch_size,
+                    weight=weight,
+                )
             if return_path:
                 path_t.append(obs_time)
                 path_y.append(y)
@@ -372,8 +441,7 @@ class FracBM(StockModel):
             return loss
 
     def generate_paths(self, start_X=None):
-        spot_paths = np.empty(
-            (self.nb_paths, self.dimensions, self.nb_steps + 1))
+        spot_paths = np.empty((self.nb_paths, self.dimensions, self.nb_steps + 1))
         dt = self.dt
         if start_X is not None:
             spot_paths[:, :, 0] = start_X
@@ -381,20 +449,37 @@ class FracBM(StockModel):
             spot_paths[:, :, 0] = self.S0
         for i in range(self.nb_paths):
             for j in range(self.dimensions):
-                fgn_sample = fgn(n=self.nb_steps, hurst=self.hurst,
-                             length=self.maturity, method=self.method)
-                spot_paths[i, j, 1:] = np.cumsum(fgn_sample)+spot_paths[i, j, 0]
+                fgn_sample = fgn(
+                    n=self.nb_steps,
+                    hurst=self.hurst,
+                    length=self.maturity,
+                    method=self.method,
+                )
+                spot_paths[i, j, 1:] = np.cumsum(fgn_sample) + spot_paths[i, j, 0]
         # stock_path dimension: [nb_paths, dimension, time_steps]
         return spot_paths, dt
 
 
 class ReflectedBM(StockModel):
-    def __init__(self, mu, sigma, max_terms, lb, ub, max_z, nb_paths, 
-                 dimension, nb_steps, maturity, use_approx_paths_technique, use_numerical_cond_exp,
-                 **kwargs):
+    def __init__(
+        self,
+        mu,
+        sigma,
+        max_terms,
+        lb,
+        ub,
+        max_z,
+        nb_paths,
+        dimension,
+        nb_steps,
+        maturity,
+        use_approx_paths_technique,
+        use_numerical_cond_exp,
+        **kwargs,
+    ):
         assert lb < ub
         assert lb + mu <= ub
-        assert ub - mu >= lb # TODO I think these are needed
+        assert ub - mu >= lb  # TODO I think these are needed
 
         self.mu = mu
         self.sigma = sigma
@@ -404,7 +489,7 @@ class ReflectedBM(StockModel):
         self.max_z = max_z
         self.nb_paths = nb_paths
         self.dimension = dimension
-        self.dimensions = 1 # TODO not sure what this is for/if useful
+        self.dimensions = 1  # TODO not sure what this is for/if useful
         self.nb_steps = nb_steps
         self.maturity = maturity
         self.dt = maturity / nb_steps
@@ -416,7 +501,7 @@ class ReflectedBM(StockModel):
         self.norm_cdf = lambda x: 0.5 * (1 + erf((x - self.mu) / self.sigma * sqrt(2)))
 
     def _get_bounds(self, a, b, k):
-        return a + k*(b - a), b + k*(b-a)
+        return a + k * (b - a), b + k * (b - a)
 
     def _proj(self, x):
         # TODO prove it works. Florian's idea
@@ -425,18 +510,20 @@ class ReflectedBM(StockModel):
             return x
 
         for z in range(-self.max_z, self.max_z + 1):
-            k = 2*z + 1
+            k = 2 * z + 1
             l, u = self._get_bounds(self.lb, self.ub, k)
             if l <= x <= u:
-                return self.ub - (x - (self.lb + k*( self.ub- self.lb)))
-            
-            k = 2*z
+                return self.ub - (x - (self.lb + k * (self.ub - self.lb)))
+
+            k = 2 * z
             l, u = self._get_bounds(self.lb, self.ub, k)
             if l <= x <= u:
-                return self.lb + (x - (self.lb + k*(self.ub - self.lb)))
+                return self.lb + (x - (self.lb + k * (self.ub - self.lb)))
 
         # If wasn't able to project with the above logic, need to expand approximation
-        raise Exception(f"Not maz_z of {self.max_z} not enough to approximate projection of {x}")
+        raise Exception(
+            f"Not maz_z of {self.max_z} not enough to approximate projection of {x}"
+        )
 
     def _generate_approx_paths(self, x0):
         # Generate approximate path by manually "projecting" onto the boundaries. This is technically
@@ -446,12 +533,16 @@ class ReflectedBM(StockModel):
         for i in range(self.nb_paths):
             for j in range(self.dimensions):
                 scale = 1.0 * self.maturity / (self.nb_steps + 1)
-                raw_paths = scale * np.cumsum(np.random.normal(self.mu, self.sigma, self.nb_steps)) + spot_paths[i, j, 0]
+                raw_paths = (
+                    scale
+                    * np.cumsum(np.random.normal(self.mu, self.sigma, self.nb_steps))
+                    + spot_paths[i, j, 0]
+                )
                 projected_paths = np.array([self._proj(x) for x in raw_paths])
                 spot_paths[i, j, 1:] = projected_paths
 
         return spot_paths
-    
+
     def _generate_true_paths(self, x0):
         # TODO will have to use rejection sampling or some MCMC method
         # https://jaketae.github.io/study/rejection-sampling/
@@ -489,7 +580,7 @@ class ReflectedBM(StockModel):
         # https://link.springer.com/content/pdf/10.1023/B:CSEM.0000049491.13935.af.pdf
         # TODO can write about this in paper
         # NOTE: to avoid overflows, need to bring the exps into one, within each sum.
-        # Additionally, sometimes need to do check to see if multiply by 0 (short cut), 
+        # Additionally, sometimes need to do check to see if multiply by 0 (short cut),
         # otherwise evaluating a huge number
         # ########
         # n = pinf
@@ -502,7 +593,7 @@ class ReflectedBM(StockModel):
         #     * (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
         #     for n in range(0, pinf)
         # )
-        
+
         # opts = (0.2, 0.02, 10, 4, 10)
 
         # x0 = (lb + ub)/2
@@ -533,64 +624,82 @@ class ReflectedBM(StockModel):
 
         # TODO consider what the pdf should be when these are not true.
         # If x (what we're asking for) is outside, then it's not possible.
-        # If the previous point is outside? then the prob is undefined. 
+        # If the previous point is outside? then the prob is undefined.
         # Just round it to closest of c or d and return that density?
         if not (c <= x <= d):
             return 0.0
-        
-        if not (c <= x0 <= d): # TODO def rethink this
+
+        if not (c <= x0 <= d):  # TODO def rethink this
             x0 = c if abs(x0 - c) < abs(x0 - d) else d
-        
+
         assert c <= x <= d
         assert c <= x0 <= d
         assert t0 < t
-        
-        coeff = 1.0/(sigma*sqrt(2*pi*(t - t0)))
+
+        coeff = 1.0 / (sigma * sqrt(2 * pi * (t - t0)))
         S1 = coeff * sum(
-            exp((2*mu*n*(c - d) / (sigma**2)) \
-            + (-(((x + 2*n*(d - c) - x0 - mu*(t - t0))**2) / (2*(sigma**2)*(t - t0)))))
+            exp(
+                (2 * mu * n * (c - d) / (sigma**2))
+                + (
+                    -(
+                        ((x + 2 * n * (d - c) - x0 - mu * (t - t0)) ** 2)
+                        / (2 * (sigma**2) * (t - t0))
+                    )
+                )
+            )
             for n in range(ninf, pinf)
         )
 
         S2 = coeff * sum(
-            exp(-(2 * mu * (n * d - (n + 1) * c + x0)) / sigma**2 \
-            + (-((2 * n * d - 2 * (n + 1) * c + x0 + x - mu * (t - t0))**2)/(2 * sigma**2 * (t - t0))))
+            exp(
+                -(2 * mu * (n * d - (n + 1) * c + x0)) / sigma**2
+                + (
+                    -((2 * n * d - 2 * (n + 1) * c + x0 + x - mu * (t - t0)) ** 2)
+                    / (2 * sigma**2 * (t - t0))
+                )
+            )
             for n in range(ninf, pinf)
         )
 
-        coeff = (2*mu) / sigma ** 2
+        coeff = (2 * mu) / sigma**2
 
         S3 = 0
         for n in range(0, pinf):
-            t2 = (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
+            t2 = 1 - phi(
+                (mu * (t - t0) + 2 * n * d - 2 * (n + 1) * c + x0 + x)
+                / (sigma * sqrt(t - t0))
+            )
             # avoid danger because t1 can become very large, even if s2 is exactly 0
             # note the numerator of t2 [0, 1] so we don't really have to worry about it overflowing
-            if isclose(t2, 0): 
+            if isclose(t2, 0):
                 # adding 0, since t2 will make the whole term 0
-                continue 
-            t1 = (2*mu*(n*d - (n + 1)*c + x)) / sigma**2
+                continue
+            t1 = (2 * mu * (n * d - (n + 1) * c + x)) / sigma**2
             S3 += exp(t1) * t2
         S3 = -coeff * S3
 
         # Same technique as above
         S4 = 0
         for n in range(0, pinf):
-            t2 = phi((mu*(t - t0) - 2*(n + 1)*d + 2*n*c + x0 + x) / (sigma * sqrt(t - t0)))
+            t2 = phi(
+                (mu * (t - t0) - 2 * (n + 1) * d + 2 * n * c + x0 + x)
+                / (sigma * sqrt(t - t0))
+            )
             if isclose(t2, 0):
                 continue
-            t1 = 2*mu*(n*c - (n + 1)*d + x) / sigma**2
+            t1 = 2 * mu * (n * c - (n + 1) * d + x) / sigma**2
             S4 += exp(t1) * t2
         S4 = coeff * S4
 
         return S1 + S2 + S3 + S4
-    
+
     def next_cond_exp(self, y, delta_t, current_t):
         assert delta_t > 0
         if self.use_numerical_cond_exp:
             return self._compute_numerical_next_cond_exp(y, delta_t, current_t)
         else:
             return self._compute_true_next_cond_exp(y, delta_t, current_t)
-    
+
     def _compute_numerical_next_cond_exp(self, y, delta_t, current_t):
         t0 = current_t
         t = current_t + delta_t
@@ -600,16 +709,27 @@ class ReflectedBM(StockModel):
             out[i] = quad(integrand, self.lb, self.ub)[0]
 
         return out
-        
+
     def _compute_true_next_cond_exp(self, y, delta_t, current_t):
         raise NotImplementedError
-    
 
-    def compute_cond_exp(self, times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                         n_obs_ot, return_path=True, get_loss=False,
-                         weight=0.5, store_and_use_stored=True,
-                         start_time=None,
-                         **kwargs):
+    def compute_cond_exp(
+        self,
+        times,
+        time_ptr,
+        X,
+        obs_idx,
+        delta_t,
+        T,
+        start_X,
+        n_obs_ot,
+        return_path=True,
+        get_loss=False,
+        weight=0.5,
+        store_and_use_stored=True,
+        start_time=None,
+        **kwargs,
+    ):
         # TODO this is identical to FBM, except removed the cov_mat stuff
         if return_path and store_and_use_stored:
             if get_loss:
@@ -640,7 +760,7 @@ class ReflectedBM(StockModel):
                 path_t = []
                 path_y = []
             else:
-                path_t = [0.]
+                path_t = [0.0]
                 path_y = [y]
 
         for i, obs_time in enumerate(times):
@@ -678,9 +798,13 @@ class ReflectedBM(StockModel):
 
             if get_loss:
                 loss = loss + compute_loss(
-                    X_obs=X_obs, Y_obs=Y[i_obs], Y_obs_bj=Y_bj[i_obs],
-                    n_obs_ot=n_obs_ot[i_obs], batch_size=batch_size,
-                    weight=weight)
+                    X_obs=X_obs,
+                    Y_obs=Y[i_obs],
+                    Y_obs_bj=Y_bj[i_obs],
+                    n_obs_ot=n_obs_ot[i_obs],
+                    batch_size=batch_size,
+                    weight=weight,
+                )
             if return_path:
                 path_t.append(obs_time)
                 path_y.append(y)
@@ -715,28 +839,32 @@ class ReflectedBM(StockModel):
 class Ball(StockModel):
     pass
 
+
 class VertexApproach(StockModel):
     pass
 
 
-
 # ==============================================================================
 # this is needed for computing the loss with the true conditional expectation
-def compute_loss(X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps=1e-10,
-                 weight=0.5, M_obs=None):
+def compute_loss(
+    X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps=1e-10, weight=0.5, M_obs=None
+):
     """
     compute the loss of the true conditional expectation, as in
     model.compute_loss
     """
     if M_obs is None:
-        inner = (2 * weight * np.sqrt(np.sum((X_obs - Y_obs) ** 2, axis=1) + eps) +
-                 2 * (1 - weight) * np.sqrt(np.sum((Y_obs_bj - Y_obs) ** 2, axis=1)
-                                            + eps)) ** 2
+        inner = (
+            2 * weight * np.sqrt(np.sum((X_obs - Y_obs) ** 2, axis=1) + eps)
+            + 2 * (1 - weight) * np.sqrt(np.sum((Y_obs_bj - Y_obs) ** 2, axis=1) + eps)
+        ) ** 2
     else:
-        inner = (2 * weight * np.sqrt(
-            np.sum(M_obs * (X_obs - Y_obs)**2, axis=1) + eps) +
-                 2 * (1 - weight) * np.sqrt(
-                    np.sum(M_obs * (Y_obs_bj - Y_obs)**2, axis=1) + eps))**2
+        inner = (
+            2 * weight * np.sqrt(np.sum(M_obs * (X_obs - Y_obs) ** 2, axis=1) + eps)
+            + 2
+            * (1 - weight)
+            * np.sqrt(np.sum(M_obs * (Y_obs_bj - Y_obs) ** 2, axis=1) + eps)
+        ) ** 2
     outer = np.sum(inner / n_obs_ot)
     return outer / batch_size
 
@@ -751,31 +879,41 @@ DATASETS = {
 
 
 hyperparam_test_stock_models = {
-    'drift': 0.2, 'volatility': 0.3, 'mean': 0.5, "poisson_lambda": 3.,
-    'speed': 0.5, 'correlation': 0.5, 'nb_paths': 10, 'nb_steps': 100,
-    'S0': 1, 'maturity': 1., 'dimension': 1}
+    "drift": 0.2,
+    "volatility": 0.3,
+    "mean": 0.5,
+    "poisson_lambda": 3.0,
+    "speed": 0.5,
+    "correlation": 0.5,
+    "nb_paths": 10,
+    "nb_steps": 100,
+    "S0": 1,
+    "maturity": 1.0,
+    "dimension": 1,
+}
 
 
 def draw_stock_model(stock_model_name):
-    hyperparam_test_stock_models['model_name'] = stock_model_name
+    hyperparam_test_stock_models["model_name"] = stock_model_name
     stockmodel = DATASETS[stock_model_name](**hyperparam_test_stock_models)
     stock_paths, dt = stockmodel.generate_paths()
-    filename = '{}.pdf'.format(stock_model_name)
+    filename = "{}.pdf".format(stock_model_name)
 
     # draw a path
     one_path = stock_paths[0, 0, :]
     dates = np.array([i for i in range(len(one_path))])
     cond_exp = np.zeros(len(one_path))
-    cond_exp[0] = hyperparam_test_stock_models['S0']
+    cond_exp[0] = hyperparam_test_stock_models["S0"]
     for i in range(1, len(one_path)):
         if i % 3 == 0:
             cond_exp[i] = one_path[i]
         else:
             cond_exp[i] = cond_exp[i - 1] * exp(
-                hyperparam_test_stock_models['drift'] * dt)
+                hyperparam_test_stock_models["drift"] * dt
+            )
 
-    plt.plot(dates, one_path, label='stock path')
-    plt.plot(dates, cond_exp, label='conditional expectation')
+    plt.plot(dates, one_path, label="stock path")
+    plt.plot(dates, cond_exp, label="conditional expectation")
     plt.legend()
     plt.savefig(filename)
     plt.close()
