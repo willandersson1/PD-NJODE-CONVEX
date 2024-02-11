@@ -7,17 +7,15 @@ data utilities for creating and loading synthetic test datasets
 
 # =====================================================================================================================
 import numpy as np
-import json, os, time
+import json, os
 from torch.utils.data import Dataset
 import torch
 import copy
 import pandas as pd
 from absl import app
 from absl import flags
-import wget
-from zipfile import ZipFile
 
-from configs import config
+from configs import config, config_utils
 import synthetic_datasets
 
 
@@ -32,7 +30,7 @@ flags.DEFINE_integer("seed", 0,
 
 _STOCK_MODELS = synthetic_datasets.DATASETS
 data_path = config.data_path
-training_data_path = config.training_data_path
+training_data_path = config_utils.training_data_path
 
 
 # =====================================================================================================================

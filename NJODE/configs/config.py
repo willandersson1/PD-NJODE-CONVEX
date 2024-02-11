@@ -2,11 +2,9 @@
 author: Florian Krach
 """
 
-import numpy as np
 import socket
 
-from configs.config_utils import get_parameter_array, makedirs, \
-    SendBotMessage, data_path, training_data_path
+from configs.config_utils import get_parameter_array, makedirs, data_path
 
 if 'ada-' not in socket.gethostname():
     SERVER = False
@@ -15,10 +13,6 @@ else:
 
 # ==============================================================================
 # Global variables
-CHAT_ID = "-587067467"
-ERROR_CHAT_ID = "-725470544"
-
-SendBotMessage = SendBotMessage
 makedirs = makedirs
 
 flagfile = "{}flagfile.tmp".format(data_path)

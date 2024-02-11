@@ -20,11 +20,6 @@ from configs import config
 import extras
 from train_switcher import train_switcher
 
-try:
-    from telegram_notifications import send_bot_message as SBM
-except Exception:
-    from configs.config import SendBotMessage as SBM
-
 
 # =====================================================================================================================
 # FLAGS
@@ -73,13 +68,11 @@ if 'ada-' not in socket.gethostname():
     flags.DEFINE_integer("NB_JOBS", 1,
                          "nb of parallel jobs to run  with joblib")
     flags.DEFINE_integer("NB_CPUS", 1, "nb of CPUs used by each training")
-    flags.DEFINE_bool("SEND", False, "whether to send with telegram bot")
 else:
     SERVER = True
     flags.DEFINE_integer("NB_JOBS", 24,
                          "nb of parallel jobs to run  with joblib")
     flags.DEFINE_integer("NB_CPUS", 2, "nb of CPUs used by each training")
-    flags.DEFINE_bool("SEND", True, "whether to send with telegram bot")
     matplotlib.use('Agg')
 
 print(socket.gethostname())
@@ -201,50 +194,25 @@ def parallel_training(params=None, model_ids=None, nb_jobs=1, first_id=None,
     for param in params:
         param['parallel'] = True
 
-    if FLAGS.SEND:
-        SBM.send_notification(
-            text='start parallel training - \nparams:'
-                 '\n\n{}'.format(params),
-            chat_id=config.CHAT_ID
-        )
-
     if FLAGS.DEBUG:
         results = Parallel(n_jobs=nb_jobs)(delayed(train_switcher)(
             anomaly_detection=FLAGS.ANOMALY_DETECTION,
             n_dataset_workers=FLAGS.N_DATASET_WORKERS, use_gpu=FLAGS.USE_GPU,
-            gpu_num=FLAGS.GPU_NUM, nb_cpus=FLAGS.NB_CPUS, send=FLAGS.SEND,
+            gpu_num=FLAGS.GPU_NUM, nb_cpus=FLAGS.NB_CPUS,
             **param)
                                            for param in params)
-        if FLAGS.SEND:
-            SBM.send_notification(
-                text='finished parallel training - \nparams:'
-                     '\n\n{}'.format(params),
-                chat_id=config.CHAT_ID
-            )
     else:
         try:
             results = Parallel(n_jobs=nb_jobs)(delayed(train_switcher)(
                 anomaly_detection=FLAGS.ANOMALY_DETECTION,
                 n_dataset_workers=FLAGS.N_DATASET_WORKERS, use_gpu=FLAGS.USE_GPU,
-                gpu_num=FLAGS.GPU_NUM, nb_cpus=FLAGS.NB_CPUS, send=FLAGS.SEND,
+                gpu_num=FLAGS.GPU_NUM, nb_cpus=FLAGS.NB_CPUS,
                 **param)
                                                for param in params)
-            if FLAGS.SEND:
-                SBM.send_notification(
-                    text='finished parallel training - \nparams:'
-                         '\n\n{}'.format(params),
-                    chat_id=config.CHAT_ID
-                )
+
         except Exception as e:
             stack_trace = traceback.format_exc()
-            if FLAGS.SEND:
-                SBM.send_notification(
-                    text='error in parallel training - \nerror:'
-                         '\n\n{}'.format(stack_trace),
-                    chat_id=config.ERROR_CHAT_ID
-                )
-            else:
-                print('error:\n\n{}'.format(stack_trace))
+            print('error:\n\n{}'.format(stack_trace))
 
 
 def main(arg):
@@ -296,17 +264,15 @@ def main(arg):
             overwrite_params=overwrite_params
         )
     if get_training_overview_dict is not None:
-        extras.get_training_overview(
-            send=FLAGS.SEND, **get_training_overview_dict)
+        extras.get_training_overview(**get_training_overview_dict)
     if plot_paths_dict is not None:
-        extras.plot_paths_from_checkpoint(
-            send=FLAGS.SEND, **plot_paths_dict)
+        extras.plot_paths_from_checkpoint(**plot_paths_dict)
     if crossval is not None:
-        extras.get_cross_validation(send=FLAGS.SEND, **crossval)
+        extras.get_cross_validation(**crossval)
     if plot_conv_study is not None:
-        extras.plot_convergence_study(send=FLAGS.SEND, **plot_conv_study)
+        extras.plot_convergence_study(**plot_conv_study)
     if plot_loss_comparison is not None:
-        extras.plot_loss_comparison(send=FLAGS.SEND, **plot_loss_comparison)
+        extras.plot_loss_comparison(**plot_loss_comparison)
 
 if __name__ == '__main__':
     app.run(main)

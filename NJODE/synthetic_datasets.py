@@ -5,16 +5,12 @@ code to generate synthetic data from stock-model SDEs
 """
 
 # ==============================================================================
-from math import sqrt, exp, isnan, gamma, pi, erf, isclose
+from math import sqrt, exp, pi, erf, isclose
 import numpy as np
-import tqdm
 from scipy.integrate import quad
 import matplotlib.pyplot as plt
-import copy, os
-from fbm import fbm, fgn  # import fractional brownian motion package
-
-import matplotlib.animation as animation
-
+import copy
+from fbm import fgn
 
 # ==============================================================================
 # CLASSES
@@ -771,7 +767,6 @@ def draw_stock_model(stock_model_name):
     dates = np.array([i for i in range(len(one_path))])
     cond_exp = np.zeros(len(one_path))
     cond_exp[0] = hyperparam_test_stock_models['S0']
-    cond_exp_const = hyperparam_test_stock_models['S0']
     for i in range(1, len(one_path)):
         if i % 3 == 0:
             cond_exp[i] = one_path[i]

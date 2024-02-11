@@ -30,22 +30,14 @@ import models
 import data_utils
 sys.path.append("../")
 
-try:
-    from telegram_notifications import send_bot_message as SBM
-except Exception:
-    from configs.config import SendBotMessage as SBM
-
-
 # =====================================================================================================================
 # check whether running on computer or server
 if 'ada-' not in socket.gethostname():
     SERVER = False
     N_CPUS = 1
-    SEND = False
 else:
     SERVER = True
     N_CPUS = 1
-    SEND = True
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 print(socket.gethostname())
@@ -54,9 +46,6 @@ print('SERVER={}'.format(SERVER))
 
 # ==============================================================================
 # Global variables
-CHAT_ID = config.CHAT_ID
-ERROR_CHAT_ID = config.ERROR_CHAT_ID
-
 data_path = config.data_path
 saved_models_path = config.saved_models_path
 flagfile = config.flagfile
@@ -76,10 +65,9 @@ USE_GPU = False
 # Functions
 makedirs = config.makedirs
 
-
 def train(
         anomaly_detection=None, n_dataset_workers=None, use_gpu=None,
-        nb_cpus=None, send=None, gpu_num=0,
+        nb_cpus=None, gpu_num=0,
         model_id=None, epochs=100, batch_size=100, save_every=1,
         learning_rate=0.001, test_size=0.2, seed=398,
         hidden_size=10, bias=True, dropout_rate=0.1,
@@ -102,7 +90,6 @@ def train(
     :param n_dataset_workers: used to pass on FLAG from parallel_train
     :param use_gpu: used to pass on FLAG from parallel_train
     :param nb_cpus: used to pass on FLAG from parallel_train
-    :param send: used to pass on FLAG from parallel_train
     :param model_id: None or int, the id to save (or load if it already exists)
             the model, if None: next biggest unused id will be used
     :param epochs: int, number of epochs to train, each epoch is one cycle
@@ -233,13 +220,11 @@ def train(
                 -> 'randomizedNJODE' has same options as NJODE
     """
 
-    global ANOMALY_DETECTION, USE_GPU, SEND, N_CPUS, N_DATASET_WORKERS
+    global ANOMALY_DETECTION, USE_GPU, N_CPUS, N_DATASET_WORKERS
     if anomaly_detection is not None:
         ANOMALY_DETECTION = anomaly_detection
     if use_gpu is not None:
         USE_GPU = use_gpu
-    if send is not None:
-        SEND = send
     if nb_cpus is not None:
         N_CPUS = nb_cpus
     if n_dataset_workers is not None:
@@ -250,10 +235,6 @@ def train(
     use_cond_exp = True
     if 'use_cond_exp' in options:
         use_cond_exp = options['use_cond_exp']
-
-    masked = False
-    if 'masked' in options and 'other_model' not in options:
-        masked = options['masked']
 
     if ANOMALY_DETECTION:
         # allow backward pass to print the traceback of the forward operation
@@ -337,14 +318,6 @@ def train(
         dataset=data_val, collate_fn=collate_fn,
         shuffle=False, batch_size=len(data_val), num_workers=N_DATASET_WORKERS)
 
-    # get additional plotting information
-    plot_variance = False
-    std_factor = 1  # factor with which the std is multiplied
-    if functions is not None and mult > 1:
-        if 'plot_variance' in options:
-            plot_variance = options['plot_variance']
-        if 'std_factor' in options:
-            std_factor = options['std_factor']
     ylabels = None
     if 'ylabels' in options:
         ylabels = options['ylabels']
@@ -437,6 +410,7 @@ def train(
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = 'NJODE'
     elif options['other_model'] == 'cvx_optimal_proj':
+        # TODO this is all basically placeholder rn
         params_dict['projection_func'] = lambda x: x
         def pen_func(Y):
             lb, ub = dataset_metadata['lb'], dataset_metadata['ub']
@@ -450,17 +424,10 @@ def train(
     else:
         raise ValueError("Invalid argument for (option) parameter 'other_model'."
                          "Please check docstring for correct use.")
-    train_readout_only = False
-    if 'train_readout_only' in options:
-        train_readout_only = options['train_readout_only']
+
     model.to(device)  # pass model to CPU/GPU
-    if not train_readout_only:
-        optimizer = torch.optim.Adam(
-            model.parameters(), lr=learning_rate, weight_decay=0.0005)
-    else:
-        optimizer = torch.optim.Adam(
-            model.readout_map.parameters(), lr=learning_rate,
-            weight_decay=0.0005)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=learning_rate, weight_decay=0.0005)
     gradient_clip = None
     if 'gradient_clip' in options:
         gradient_clip = options["gradient_clip"]
@@ -505,39 +472,16 @@ def train(
         curr_opt_loss = plot_one_path_with_pred(
             device, model, batch, stockmodel, delta_t, T,
             path_to_plot=paths_to_plot, save_path=plot_save_path,
-            filename=plot_filename, plot_variance=plot_variance,
-            functions=functions, std_factor=std_factor,
-            model_name=model_name, save_extras=save_extras, ylabels=ylabels,
+            filename=plot_filename, save_extras=save_extras, ylabels=ylabels,
             same_yaxis=plot_same_yaxis, plot_obs_prob=plot_obs_prob,
             dataset_metadata=dataset_metadata)
-        if SEND:
-            files_to_send = []
-            caption = "{} - id={}".format(model_name, model_id)
-            for i in paths_to_plot:
-                files_to_send.append(
-                    os.path.join(plot_save_path, plot_filename.format(i)))
-            SBM.send_notification(
-                text='finished plot-only: {}, id={}\n\n{}'.format(
-                    model_name, model_id, desc),
-                chat_id=config.CHAT_ID,
-                files=files_to_send,
-                text_for_files=caption
-            )
         initial_print += '\noptimal eval-loss (with current weight={:.5f}): ' \
                          '{:.5f}'.format(model.weight, curr_opt_loss)
         print(initial_print)
         return 0
 
     # ---------------- TRAINING ----------------
-    skip_training = True
     if model.epoch <= epochs:  # check if it already trained the requested number of epochs
-        skip_training = False
-
-        # send notification
-        if SEND:
-            SBM.send_notification(
-                text='start training - model id={}'.format(model_id),
-                chat_id=config.CHAT_ID)
         initial_print += '\n\nmodel overview:'
         print(initial_print)
         print(model, '\n')
@@ -564,11 +508,7 @@ def train(
     metric_app = []
     while model.epoch <= epochs:
         t = time.time()  # return the time in seconds since the epoch
-        model.train()  # set model in train mode (e.g. BatchNorm)
-        if 'other_model' in options and \
-                options['other_model'] == "randomizedNJODE":
-            linreg_X = []
-            linreg_y = []
+        model.train()
         for i, b in tqdm.tqdm(enumerate(dl)):  # iterate over the dataloader
             optimizer.zero_grad()  # reset the gradient
             times = b["times"]  # Produce instance of byte type instead of str type
@@ -585,31 +525,19 @@ def train(
             obs_idx = b["obs_idx"]
             n_obs_ot = b["n_obs_ot"].to(device)
 
-            if 'other_model' not in options or model_name == "NJmodel":
-                hT, loss = model(
-                    times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
-                    delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
-                    return_path=False, get_loss=True, M=M, start_M=start_M)
-            elif model_name == 'cvx_optimal_proj': # TODO same as for njmodel tho?
-                hT, loss = model(
-                    times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
-                    delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
-                    return_path=False, get_loss=True, M=M, start_M=start_M)
-            else:
-                raise ValueError("Other model not supported")
-            loss.backward()  # compute gradient of each weight regarding loss function
+            hT, loss = model(
+                times=times, time_ptr=time_ptr, X=X, obs_idx=obs_idx,
+                delta_t=delta_t, T=T, start_X=start_X, n_obs_ot=n_obs_ot,
+                return_path=False, get_loss=True, M=M, start_M=start_M)
+            
+            loss.backward()
             if gradient_clip is not None:
                 nn.utils.clip_grad_value_(
                     model.parameters(), clip_value=gradient_clip)
-            optimizer.step()  # update weights by ADAM optimizer
+            optimizer.step()
             if ANOMALY_DETECTION:
                 print(r"current loss: {}".format(loss.detach().numpy()))
-        if 'other_model' in options and \
-                options['other_model'] == "randomizedNJODE":
-            linreg_X = np.stack(linreg_X, axis=0)
-            linreg_y = np.stack(linreg_y, axis=0)
-            print("OLS to fit readout-map ...")
-            model.readout_map.fit(linreg_X, linreg_y)
+
         train_time = time.time() - t  # difference between current time and start time
 
         # -------- evaluation --------
@@ -641,33 +569,13 @@ def train(
                 true_paths = b["true_paths"]
                 true_mask = b["true_mask"]
 
-                if 'other_model' not in options or model_name == "NJmodel": # TODO this is the same block of code as above? just has c_loss instead of loss I think
-                    hT, c_loss = model(
-                        times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                        n_obs_ot, return_path=False, get_loss=True, M=M,
-                        start_M=start_M, which_loss='standard')
-                elif model_name == 'cvx_optimal_proj':
-                    hT, c_loss = model(
-                        times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                        n_obs_ot, return_path=False, get_loss=True, M=M,
-                        start_M=start_M)
-                else:
-                    raise ValueError
-                print(c_loss)
+                hT, c_loss = model(
+                    times, time_ptr, X, obs_idx, delta_t, T, start_X,
+                    n_obs_ot, return_path=False, get_loss=True, M=M,
+                    start_M=start_M)
+
                 loss_val += c_loss.detach().numpy()
                 num_obs += 1  # count number of observations
-
-                # if functions are applied, also compute the loss when only
-                #   using the coordinates where function was not applied
-                #   -> this can be compared to the optimal-eval-loss
-                if mult is not None and mult > 1:
-                    if 'other_model' not in options:
-                        hT_corrected, c_loss_corrected = model(
-                            times, time_ptr, X, obs_idx, delta_t, T, start_X,
-                            n_obs_ot, return_path=False, get_loss=True, M=M,
-                            start_M=start_M, which_loss='standard',
-                            dim_to=dimension)
-                    loss_val_corrected += c_loss_corrected.detach().numpy()
 
                 # mean squared difference evaluation
                 if 'evaluate' in options and options['evaluate']:
@@ -715,9 +623,7 @@ def train(
                     device=device, model=model, batch=batch,
                     stockmodel=stockmodel, delta_t=delta_t, T=T,
                     path_to_plot=paths_to_plot, save_path=plot_save_path,
-                    filename=plot_filename, plot_variance=plot_variance,
-                    functions=functions, std_factor=std_factor,
-                    model_name=model_name, save_extras=save_extras,
+                    filename=plot_filename, save_extras=save_extras,
                     ylabels=ylabels, use_cond_exp=use_cond_exp,
                     same_yaxis=plot_same_yaxis, plot_obs_prob=plot_obs_prob,
                     dataset_metadata=dataset_metadata)
@@ -749,21 +655,6 @@ def train(
 
         model.epoch += 1
         model.weight_decay_step()
-
-    # send notification
-    if SEND and not skip_training:
-        files_to_send = [model_metric_file]
-        caption = "{} - id={}".format(model_name, model_id)
-        if plot:
-            for i in paths_to_plot:
-                files_to_send.append(
-                    os.path.join(plot_save_path, plot_filename.format(i)))
-        SBM.send_notification(
-            text='finished training: {}, id={}\n\n{}'.format(
-                model_name, model_id, desc),
-            chat_id=config.CHAT_ID,
-            files=files_to_send,
-            text_for_files=caption)
 
     # delete model & free memory
     del model, dl, dl_val, data_train, data_val
@@ -803,10 +694,8 @@ def compute_optimal_eval_loss(dl_val, stockmodel, delta_t, T, mult=None):
 
 def plot_one_path_with_pred(
         device, model, batch, stockmodel, delta_t, T,
-        path_to_plot=(0,), save_path='', filename='plot_{}.pdf',
-        plot_variance=False, functions=None, std_factor=1,
-        model_name=None, ylabels=None,
-        save_extras={'bbox_inches': 'tight', 'pad_inches': 0.01},
+        path_to_plot=(0,), save_path='', filename='plot_{}.pdf', model_name='our model',
+        ylabels=None, save_extras={'bbox_inches': 'tight', 'pad_inches': 0.01},
         use_cond_exp=True, same_yaxis=False,
         plot_obs_prob=False, dataset_metadata=None,
 ):
@@ -841,9 +730,6 @@ def plot_one_path_with_pred(
         used dataset to extract the observation probability
     :return: optimal loss
     """
-    if model_name is None or model_name == "NJODE":
-        model_name = 'our model'
-
     prop_cycle = plt.rcParams['axes.prop_cycle']  # change style of plot?
     colors = prop_cycle.by_key()['color']
     std_color = list(matplotlib.colors.to_rgb(colors[1])) + [0.5]
@@ -866,10 +752,6 @@ def plot_one_path_with_pred(
     bs, dim, time_steps = true_X.shape
     true_M = batch["true_mask"]
     observed_dates = batch['observed_dates']
-    if "obs_noise" in batch:
-        obs_noise = batch["obs_noise"]
-    else:
-        obs_noise = None
     path_t_true_X = np.linspace(0., T, int(np.round(T / delta_t)) + 1)
 
     model.eval()  # put model in evaluation mode
@@ -879,17 +761,6 @@ def plot_one_path_with_pred(
     path_y_pred = res['pred'].detach().numpy()
     path_t_pred = res['pred_t']
 
-    # get variance path
-    if plot_variance and (functions is not None) and ('power-2' in functions):
-        which = np.argmax(np.array(functions) == 'power-2')+1
-        y2 = path_y_pred[:, :, (dim * which):(dim * (which + 1))]
-        path_var_pred = y2 - np.power(path_y_pred[:, :, 0:dim], 2)
-        if np.any(path_var_pred < 0):
-            print('WARNING: some predicted cond. variances below 0 -> clip')
-            path_var_pred = np.maximum(0, path_var_pred)
-        path_std_pred = np.sqrt(path_var_pred)
-    else:
-        plot_variance = False
     if use_cond_exp:
         if M is not None:
             M = M.detach().numpy()
@@ -909,75 +780,29 @@ def plot_one_path_with_pred(
             # get the true_X at observed dates
             path_t_obs = []
             path_X_obs = []
-            if obs_noise is not None:
-                path_O_obs = []
             for k, od in enumerate(observed_dates[i]):
                 if od == 1:
                     if true_M is None or (true_M is not None and
                                           true_M[i, j, k]==1):
                         path_t_obs.append(path_t_true_X[k])
                         path_X_obs.append(true_X[i, j, k])
-                        if obs_noise is not None:
-                            path_O_obs.append(
-                                true_X[i, j, k]+obs_noise[i, j, k])
             path_t_obs = np.array(path_t_obs)
             path_X_obs = np.array(path_X_obs)
-            if obs_noise is not None:
-                path_O_obs = np.array(path_O_obs)
 
             axs[j].plot(path_t_true_X, true_X[i, j, :], label='true path',
                         color=colors[0])
-            if obs_noise is not None:
-                axs[j].scatter(path_t_obs, path_O_obs, label='observed',
-                               color=colors[0])
-                axs[j].scatter(path_t_obs, path_X_obs,
-                               label='true value at obs time',
-                               color=colors[2], marker='*')
-            else:
-                axs[j].scatter(path_t_obs, path_X_obs, label='observed',
-                               color=colors[0])
+            axs[j].scatter(path_t_obs, path_X_obs, label='observed',
+                            color=colors[0])
             axs[j].plot(path_t_pred, path_y_pred[:, i, j],
                         label=model_name, color=colors[1])
-            if plot_variance:
-                axs[j].fill_between(
-                    path_t_pred,
-                    path_y_pred[:, i, j] - std_factor * path_std_pred[:, i, j],
-                    path_y_pred[:, i, j] + std_factor * path_std_pred[:, i, j],
-                    color=std_color)
             if use_cond_exp:
                 axs[j].plot(path_t_true, path_y_true[:, i, j],
                             label='true conditional expectation',
                             linestyle=':', color=colors[2])
             if plot_obs_prob and dataset_metadata is not None:
                 ax2 = axs[j].twinx()
-                if "X_dependent_observation_prob" in dataset_metadata:
-                    prob_f = eval(
-                        dataset_metadata["X_dependent_observation_prob"])
-                    obs_perc = prob_f(true_X[:, :, :])[i]
-                    obs_perc = prob_f(true_X[:, :, :])[i]
-                elif "obs_scheme" in dataset_metadata:
-                    obs_scheme = dataset_metadata["obs_scheme"]
-                    if obs_scheme["name"] == "NJODE3-Example4.9":
-                        obs_perc = np.ones_like(path_t_true_X)
-                        x0 = true_X[i, 0, 0]
-                        p = obs_scheme["p"]
-                        eta = obs_scheme["eta"]
-                        last_observation = x0
-                        last_obs_time = 0
-                        for k, t in enumerate(path_t_true_X[1:]):
-                            q = 1/(k+1-last_obs_time)
-                            normal_prob = stats.norm.sf(
-                                stockmodel.next_cond_exp(
-                                    x0, (k+1)*delta_t, (k+1)*delta_t),
-                                scale=eta, loc=last_observation)
-                            obs_perc[k+1] = q*normal_prob + (1-q)*p
-                            if observed_dates[i, k+1] == 1:
-                                last_observation = true_X[i, 0, k+1]
-                                last_obs_time = k+1
-                    obs_perc = prob_f(true_X[:, :, :])[i]                   
-                else:
-                    obs_perc = dataset_metadata['obs_perc']
-                    obs_perc = np.ones_like(path_t_true_X) * obs_perc
+                obs_perc = dataset_metadata['obs_perc']
+                obs_perc = np.ones_like(path_t_true_X) * obs_perc
                 ax2.plot(path_t_true_X, obs_perc, color="red",
                          label="observation probability")
                 ax2.set_ylim(-0.1, 1.1)
@@ -990,9 +815,6 @@ def plot_one_path_with_pred(
             if same_yaxis:
                 low = np.min(true_X[i, :, :])
                 high = np.max(true_X[i, :, :])
-                if obs_noise is not None:
-                    low = min(low, np.min(true_X[i]+obs_noise[i]))
-                    high = max(high, np.max(true_X[i]+obs_noise[i]))
                 eps = (high - low)*0.05
                 axs[j].set_ylim([low-eps, high+eps])
 
@@ -1006,5 +828,3 @@ def plot_one_path_with_pred(
         plt.close()
 
     return opt_loss
-
-

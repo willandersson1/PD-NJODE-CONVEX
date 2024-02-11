@@ -8,13 +8,8 @@ implementation of the model for NJ-ODE
 import torch
 import numpy as np
 import os
-import sys
 import iisignature as sig
 import copy as copy
-import sklearn
-import scipy.linalg
-
-import data_utils
 
 
 # =====================================================================================================================
@@ -229,25 +224,6 @@ class ODEFunc(torch.nn.Module):
         return df
 
 
-class GRUCell(torch.nn.Module):
-    """
-    Implements discrete update based on the received observations, \rho_{\theta}
-    in paper
-    """
-
-    def __init__(self, input_size, hidden_size, bias=True):
-        super().__init__()
-        self.gru_d = torch.nn.GRUCell(input_size=input_size, hidden_size=hidden_size, bias=bias)
-
-        self.input_size = input_size
-
-    def forward(self, h, X_obs, i_obs):
-        temp = h.clone()
-        temp[i_obs] = self.gru_d(X_obs, h[i_obs])
-        h = temp
-        return h
-
-
 class FFNN(torch.nn.Module):
     """
     Implements feed-forward neural networks with tanh applied to inputs and the
@@ -407,11 +383,7 @@ class NJODE(torch.nn.Module):
 
         # get options from the options of train input
         options1 = options['options']
-        if 'which_loss' in options1:
-            self.which_loss = options1['which_loss']  # change loss if specified in options
-        else:
-            self.which_loss = 'standard'  # otherwise take the standard loss
-        assert self.which_loss in LOSS_FUN_DICT
+        self.which_loss = 'standard'
         print('using loss: {}'.format(self.which_loss))
 
         self.residual_enc_dec = True

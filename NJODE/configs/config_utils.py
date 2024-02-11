@@ -13,18 +13,6 @@ from sklearn.model_selection import ParameterGrid
 data_path = '../data/'
 training_data_path = '{}training_data/'.format(data_path)
 
-
-# ==============================================================================
-# GLOBAL CLASSES
-class SendBotMessage:
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def send_notification(text, *args, **kwargs):
-        print(text)
-
-
 # ==============================================================================
 # FUNCTIONS
 def get_parameter_array(param_dict):

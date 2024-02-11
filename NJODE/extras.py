@@ -17,17 +17,10 @@ import matplotlib.colors
 from configs import config
 from train_switcher import train_switcher
 
-try:
-    from telegram_notifications import send_bot_message as SBM
-except Exception:
-    from configs.config import SendBotMessage as SBM
-
 if 'ada-' not in socket.gethostname():
     SERVER = False
-    SEND = False
 else:
     SERVER = True
-    SEND = True
 
 if SERVER:
     matplotlib.use('Agg')
@@ -133,12 +126,12 @@ def plot_convergence_study(
         x_log=False, y_log=False,
         save_path="{}plots/".format(config.data_path),
         save_extras={'bbox_inches':'tight', 'pad_inches': 0.01},
-        send=SEND, file_name="conv_study",
+        file_name="conv_study",
 ):
     """
     function to plot the convergence study when network size and number of
     samples are varied and multiple "identical" models are trained for each
-    combiation
+    combination
     :param path: str, path where models are saved
     :param ids_from: None or int, which ids to consider start point
     :param ids_to: None or int, which ids to consider end point
@@ -148,7 +141,6 @@ def plot_convergence_study(
     :param y_log: bool, whether y-axis is logarithmic
     :param save_path: str
     :param save_extras: dict, extra arguments for saving the plots
-    :param send: bool, whether to send
     :param file_name: str,
     """
     prop_cycle = plt.rcParams['axes.prop_cycle']        #visual settings
@@ -226,10 +218,6 @@ def plot_convergence_study(
     save_file = "{}{}_{}.png".format(save_path, file_name, x_axis)
     plt.savefig(save_file, **save_extras)
 
-    if send:
-        SBM.send_notification(
-            text_for_files='convergence plot', files=[save_file])
-
 
 def get_training_overview(
         path=config.saved_models_path, ids_from=None,
@@ -247,7 +235,6 @@ def get_training_overview(
         early_stop_after_epoch=0,
         sortby=None,
         save_file=None,
-        send=SEND,
 ):
     """
     function to get the important metrics and hyper-params for each model in the
@@ -348,19 +335,11 @@ def get_training_overview(
                 path, ids_from, ids_to)
         df.to_csv(save_file)
 
-    if send and save_file is not False:
-        files_to_send = [save_file]
-        SBM.send_notification(
-            text=None,
-            chat_id=config.CHAT_ID,
-            text_for_files='training overview',
-            files=files_to_send)
-
     return df
 
 
 def plot_paths_from_checkpoint(
-        saved_models_path=config.saved_models_path, send=SEND,
+        saved_models_path=config.saved_models_path,
         model_ids=(1,), which='best', paths_to_plot=(0,), LOB_plot_errors=False,
         plot_boxplot_only=False,
         **options
@@ -411,10 +390,10 @@ def plot_paths_from_checkpoint(
 
             if which in ['best', 'both']:
                 params_dict['load_best'] = True
-                train_switcher(send=send, **params_dict)
+                train_switcher(**params_dict)
             if which in ['last', 'both']:
                 params_dict['load_best'] = False
-                train_switcher(send=send, **params_dict)
+                train_switcher(**params_dict)
 
 
 def plot_loss_and_metric(
@@ -462,15 +441,8 @@ def plot_loss_and_metric(
         plt.savefig(save_path, **save_extras)
         plt.close(fig)
 
-        if SEND:
-            SBM.send_notification(
-                text=None, #files=[save_path],
-                #text_for_files="loss and metric plot - id={}".format(model_id)
-            )
-
 
 def get_cross_validation(
-        send=SEND,
         params_extract_desc=('dataset', 'network_size', 'dropout_rate',
                              'hidden_size', 'activation_function_1'),
         val_test_params_extract=(("min", "eval_metric",
@@ -556,12 +528,6 @@ def get_cross_validation(
         data=data, columns=columns)
     df_out.to_csv(save_path.format(path))
 
-    if send:
-        SBM.send_notification(
-            text=None, files=[save_path.format(path)],
-            text_for_files="cross validation",
-            chat_id=config.CHAT_ID)
-
     return df_out
 
 
@@ -569,7 +535,7 @@ def plot_loss_comparison(
         filename, param_combinations, outfile, xcol, ycol, labels=None,
         xlabel=None, ylabel=None, logx=False, logy=False,
         save_extras={'bbox_inches': 'tight', 'pad_inches': 0.01},
-        fig_size=None, send=True):
+        fig_size=None):
     """
     function to plot the loss comparison
     Args:
@@ -613,21 +579,3 @@ def plot_loss_comparison(
         plt.yscale('log')
     plt.savefig(outfile, **save_extras)
     plt.close()
-
-    if send:
-        SBM.send_notification(
-            text=None, files=[outfile],
-            text_for_files="loss comparison",
-            chat_id=config.CHAT_ID)
-
-
-
-
-
-if __name__ == '__main__':
-
-
-    pass
-
-
-
