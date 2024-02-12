@@ -39,6 +39,8 @@ class StockModel:
         self.loss = None
         self.path_t = None
         self.path_y = None
+        self.masked = False
+        self.track_obs_cov_mat = False
 
     def generate_paths(self, **options):
         """
@@ -54,6 +56,9 @@ class StockModel:
         :return: cond. exp. at next time_point (= current_time + time_delta)
         """
         raise ValueError("not implemented yet")
+
+    def get_cov_mat(self):
+        raise NotImplementedError()
 
     def compute_cond_exp(
         self,
@@ -107,6 +112,17 @@ class StockModel:
 
         y = start_X
         batch_size = start_X.shape[0]
+
+        assert not self.track_obs_cov_mat or (self.track_obs_cov_mat and self.masked)
+
+        if self.masked:
+            self.observed_t = [[] for _ in range(batch_size)]
+            self.observed_X = [[] for _ in range(batch_size)]
+
+        if self.track_obs_cov_mat:
+            self.obs_cov_mat = [None for x in range(batch_size)]
+            self.obs_cov_mat_inv = [None for x in range(batch_size)]
+
         current_time = 0.0
         if start_time:
             current_time = start_time
@@ -146,6 +162,16 @@ class StockModel:
             end = time_ptr[i + 1]
             X_obs = X[start:end]
             i_obs = obs_idx[start:end]
+
+            # add to observed, if we're tracking it
+            if self.masked:
+                for j, ii in enumerate(i_obs):
+                    self.observed_t[ii].append(obs_time)
+                    self.observed_X[ii].append(X_obs[j, 0])
+
+                    if self.track_obs_cov_mat:
+                        self.obs_cov_mat[ii] = self.get_cov_mat(self.observed_t[ii])
+                        self.obs_cov_mat_inv[ii] = np.linalg.inv(self.obs_cov_mat[ii])
 
             # Update h. Also updating loss, tau and last_X
             Y_bj = y
@@ -262,6 +288,8 @@ class FracBM(StockModel):
         self.loss = None
         self.path_t = None
         self.path_y = None
+        self.masked = True
+        self.track_obs_cov_mat = True
 
     def r_H(self, t, s):
         return 0.5 * (
@@ -286,159 +314,10 @@ class FracBM(StockModel):
                 )
         return next_y
 
-    def compute_cond_exp(
-        self,
-        times,
-        time_ptr,
-        X,
-        obs_idx,
-        delta_t,
-        T,
-        start_X,
-        n_obs_ot,
-        return_path=True,
-        get_loss=False,
-        weight=0.5,
-        store_and_use_stored=True,
-        start_time=None,
-        **kwargs,
-    ):
-        """
-        Compute conditional expectation
-        :param times: np.array, of observation times
-        :param time_ptr: list, start indices of X and obs_idx for a given
-                observation time, first element is 0, this pointer tells how
-                many (and which) of the observations of X along the batch-dim
-                belong to the current time, and obs_idx then tells to which of
-                the batch elements they belong. In particular, not each batch-
-                element has to jump at the same time, and only those elements
-                which jump at the current time should be updated with a jump
-        :param X: np.array, data tensor
-        :param obs_idx: list, index of the batch elements where jumps occur at
-                current time
-        :param delta_t: float, time step for Euler
-        :param T: float, the final time
-        :param start_X: np.array, the starting point of X
-        :param n_obs_ot: np.array, the number of observations over the
-                entire time interval for each element of the batch
-        :param return_path: bool, whether to return the path of h
-        :param get_loss: bool, whether to compute the loss, otherwise 0 returned
-        :param until_T: bool, whether to continue until T (for eval) or only
-                until last observation (for training)
-        :param M: None or torch.tensor, if not None: the mask for the data, same
-                size as X, with 0 or 1 entries
-        :return: float (loss), if wanted paths of t and y (np.arrays)
-        """
-        if return_path and store_and_use_stored:
-            if get_loss:
-                if self.path_t is not None and self.loss is not None:
-                    return self.loss, self.path_t, self.path_y
-            else:
-                if self.path_t is not None:
-                    return self.loss, self.path_t, self.path_y
-        elif store_and_use_stored:
-            if get_loss:
-                if self.loss is not None:
-                    return self.loss
-
+    def compute_cond_exp(self, *args, **kwargs):
         assert self.dimensions == 1, "cond. exp. computation of FBM only for 1d"
         assert self.S0 == 0, "cond. exp. computation of FBM only for S0=0"
-
-        bs = start_X.shape[0]
-        self.observed_t = [[] for x in range(bs)]
-        self.observed_X = [[] for x in range(bs)]
-        self.obs_cov_mat = [None for x in range(bs)]
-        self.obs_cov_mat_inv = [None for x in range(bs)]
-
-        y = start_X
-        batch_size = bs
-        current_time = 0.0
-        if start_time:
-            current_time = start_time
-
-        loss = 0
-
-        if return_path:
-            if start_time:
-                path_t = []
-                path_y = []
-            else:
-                path_t = [0.0]
-                path_y = [y]
-
-        for i, obs_time in enumerate(times):
-            # Calculate conditional expectation stepwise
-            while current_time < (obs_time - 1e-10 * delta_t):
-                if current_time < obs_time - delta_t:
-                    delta_t_ = delta_t
-                else:
-                    delta_t_ = obs_time - current_time
-                y = self.next_cond_exp(y, delta_t_, current_time)
-                current_time = current_time + delta_t_
-
-                # Storing the conditional expectation
-                if return_path:
-                    path_t.append(current_time)
-                    path_y.append(y)
-
-            # Reached an observation - set new interval
-            start = time_ptr[i]
-            end = time_ptr[i + 1]
-            X_obs = X[start:end]
-            i_obs = obs_idx[start:end]
-
-            # add to observed
-            for j, ii in enumerate(i_obs):
-                self.observed_t[ii].append(obs_time)
-                self.observed_X[ii].append(X_obs[j, 0])
-                self.obs_cov_mat[ii] = self.get_cov_mat(self.observed_t[ii])
-                self.obs_cov_mat_inv[ii] = np.linalg.inv(self.obs_cov_mat[ii])
-
-            # Update h. Also updating loss, tau and last_X
-            Y_bj = y
-            temp = copy.copy(y)
-            temp[i_obs] = X_obs
-            y = temp
-            Y = y
-
-            if get_loss:
-                loss = loss + compute_loss(
-                    X_obs=X_obs,
-                    Y_obs=Y[i_obs],
-                    Y_obs_bj=Y_bj[i_obs],
-                    n_obs_ot=n_obs_ot[i_obs],
-                    batch_size=batch_size,
-                    weight=weight,
-                )
-            if return_path:
-                path_t.append(obs_time)
-                path_y.append(y)
-
-        # after every observation has been processed, propagating until T
-        while current_time < T - 1e-10 * delta_t:
-            if current_time < T - delta_t:
-                delta_t_ = delta_t
-            else:
-                delta_t_ = T - current_time
-            y = self.next_cond_exp(y, delta_t_)
-            current_time = current_time + delta_t_
-
-            # Storing the predictions.
-            if return_path:
-                path_t.append(current_time)
-                path_y.append(y)
-
-        if get_loss and store_and_use_stored:
-            self.loss = loss
-        if return_path and store_and_use_stored:
-            self.path_t = np.array(path_t)
-            self.path_y = np.array(path_y)
-
-        if return_path:
-            # path dimension: [time_steps, batch_size, output_size]
-            return loss, np.array(path_t), np.array(path_y)
-        else:
-            return loss
+        return super().compute_cond_exp(*args, **kwargs)
 
     def generate_paths(self, start_X=None):
         spot_paths = np.empty((self.nb_paths, self.dimensions, self.nb_steps + 1))
@@ -499,6 +378,8 @@ class ReflectedBM(StockModel):
         self.use_approx_paths_technique = use_approx_paths_technique
         self.use_numerical_cond_exp = use_numerical_cond_exp
         self.norm_cdf = lambda x: 0.5 * (1 + erf((x - self.mu) / self.sigma * sqrt(2)))
+        self.masked = True
+        self.track_obs_cov_mat = False
 
     def _get_bounds(self, a, b, k):
         return a + k * (b - a), b + k * (b - a)
@@ -713,128 +594,6 @@ class ReflectedBM(StockModel):
 
     def _compute_true_next_cond_exp(self, y, delta_t, current_t):
         raise NotImplementedError
-
-    def compute_cond_exp(
-        self,
-        times,
-        time_ptr,
-        X,
-        obs_idx,
-        delta_t,
-        T,
-        start_X,
-        n_obs_ot,
-        return_path=True,
-        get_loss=False,
-        weight=0.5,
-        store_and_use_stored=True,
-        start_time=None,
-        **kwargs,
-    ):
-        # TODO this is identical to FBM, except removed the cov_mat stuff
-        if return_path and store_and_use_stored:
-            if get_loss:
-                if self.path_t is not None and self.loss is not None:
-                    return self.loss, self.path_t, self.path_y
-            else:
-                if self.path_t is not None:
-                    return self.loss, self.path_t, self.path_y
-        elif store_and_use_stored:
-            if get_loss:
-                if self.loss is not None:
-                    return self.loss
-
-        bs = start_X.shape[0]
-        self.observed_t = [[] for x in range(bs)]
-        self.observed_X = [[] for x in range(bs)]
-
-        y = start_X
-        batch_size = bs
-        current_time = 0.0
-        if start_time:
-            current_time = start_time
-
-        loss = 0
-
-        if return_path:
-            if start_time:
-                path_t = []
-                path_y = []
-            else:
-                path_t = [0.0]
-                path_y = [y]
-
-        for i, obs_time in enumerate(times):
-            # Calculate conditional expectation stepwise
-            while current_time < (obs_time - 1e-10 * delta_t):
-                if current_time < obs_time - delta_t:
-                    delta_t_ = delta_t
-                else:
-                    delta_t_ = obs_time - current_time
-                y = self.next_cond_exp(y, delta_t_, current_time)
-                current_time = current_time + delta_t_
-
-                # Storing the conditional expectation
-                if return_path:
-                    path_t.append(current_time)
-                    path_y.append(y)
-
-            # Reached an observation - set new interval
-            start = time_ptr[i]
-            end = time_ptr[i + 1]
-            X_obs = X[start:end]
-            i_obs = obs_idx[start:end]
-
-            # add to observed
-            for j, ii in enumerate(i_obs):
-                self.observed_t[ii].append(obs_time)
-                self.observed_X[ii].append(X_obs[j, 0])
-
-            # Update h. Also updating loss, tau and last_X
-            Y_bj = y
-            temp = copy.copy(y)
-            temp[i_obs] = X_obs
-            y = temp
-            Y = y
-
-            if get_loss:
-                loss = loss + compute_loss(
-                    X_obs=X_obs,
-                    Y_obs=Y[i_obs],
-                    Y_obs_bj=Y_bj[i_obs],
-                    n_obs_ot=n_obs_ot[i_obs],
-                    batch_size=batch_size,
-                    weight=weight,
-                )
-            if return_path:
-                path_t.append(obs_time)
-                path_y.append(y)
-
-        # after every observation has been processed, propagating until T
-        while current_time < T - 1e-10 * delta_t:
-            if current_time < T - delta_t:
-                delta_t_ = delta_t
-            else:
-                delta_t_ = T - current_time
-            y = self.next_cond_exp(y, delta_t_, current_time)
-            current_time = current_time + delta_t_
-
-            # Storing the predictions.
-            if return_path:
-                path_t.append(current_time)
-                path_y.append(y)
-
-        if get_loss and store_and_use_stored:
-            self.loss = loss
-        if return_path and store_and_use_stored:
-            self.path_t = np.array(path_t)
-            self.path_y = np.array(path_y)
-
-        if return_path:
-            # path dimension: [time_steps, batch_size, output_size]
-            return loss, np.array(path_t), np.array(path_y)
-        else:
-            return loss
 
 
 class Ball(StockModel):

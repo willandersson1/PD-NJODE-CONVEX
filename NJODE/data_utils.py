@@ -15,9 +15,8 @@ import synthetic_datasets
 import torch
 from absl import app, flags
 from configs import config, config_utils
-from torch.utils.data import Dataset
-
 from configs.config import DATA_DICTS
+from torch.utils.data import Dataset
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("dataset_params", None, "name of the dict with data hyper-params")
@@ -464,7 +463,7 @@ def main(arg):
     else:
         raise ValueError("Please provide --dataset_name")
     if FLAGS.dataset_params:
-        dataset_params = eval("config." + FLAGS.dataset_params)
+        dataset_params = DATA_DICTS[FLAGS.dataset_params]
         print("dataset_params: {}".format(dataset_params))
     else:
         raise ValueError("Please provide --dataset_params")
