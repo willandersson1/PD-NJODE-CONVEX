@@ -4,12 +4,14 @@ authors: Florian Krach & Marc Nuebel & Calypso Herrera
 implementation of the model for NJ-ODE
 """
 
+import copy as copy
+import os
+
+import iisignature as sig
+import numpy as np
+
 # =====================================================================================================================
 import torch
-import numpy as np
-import os
-import iisignature as sig
-import copy as copy
 
 
 # =====================================================================================================================
@@ -821,7 +823,6 @@ class NJODE(torch.nn.Module):
                         tau=tau,
                         signature=c_sig,
                     )
-                    current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
 
@@ -1318,7 +1319,6 @@ class NJODE_optimal_projection(NJODE):
                         tau=tau,
                         signature=c_sig,
                     )
-                    current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
 
