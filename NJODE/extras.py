@@ -49,9 +49,9 @@ def plot_loss_diff(
     :param fig_size: None or list of 2 ints
     """
     if fig_size is not None:
-        f = plt.figure(figsize=fig_size)
+        plt.figure(figsize=fig_size)
     else:
-        f = plt.figure()
+        plt.figure()
     for tup in losses:
         t, loss_diff, name = tup
         plt.plot(t, loss_diff, label=name)
@@ -613,9 +613,9 @@ def plot_loss_comparison(
     linestyles = ["-", "--", "-.", ":"]
 
     if fig_size is not None:
-        f = plt.figure(figsize=fig_size)
+        plt.figure(figsize=fig_size)
     else:
-        f = plt.figure()
+        plt.figure()
     df = pd.read_csv(filename, index_col=0)
     if labels is None:
         labels = [str(pc) for pc in param_combinations]

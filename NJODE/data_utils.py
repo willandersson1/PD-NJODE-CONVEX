@@ -92,9 +92,6 @@ def create_dataset(stock_model_name="FBM", hyperparam_dict=None, seed=0):
     hyperparam_dict["model_name"] = stock_model_name
     original_desc = json.dumps(hyperparam_dict, sort_keys=True)
     obs_perc = hyperparam_dict["obs_perc"]
-    obs_scheme = None
-    if "obs_scheme" in hyperparam_dict:
-        obs_scheme = hyperparam_dict["obs_scheme"]
     masked = False
     masked_lambda = None
     mask_probs = None
@@ -168,7 +165,6 @@ def create_dataset(stock_model_name="FBM", hyperparam_dict=None, seed=0):
     file_name = "{}-{}".format(stock_model_name, time_id)
     path = "{}{}/".format(training_data_path, file_name)
     hyperparam_dict["dt"] = dt
-    desc = json.dumps(hyperparam_dict, sort_keys=True)
     if os.path.exists(path):
         print("Path already exists - abort")
         raise ValueError
@@ -304,7 +300,7 @@ class IrregularDataset(Dataset):
         return len(self.nb_obs)
 
     def __getitem__(self, idx):
-        if type(idx) == int:
+        if isinstance(idx, int):
             idx = [idx]
         if self.obs_noise is None:
             obs_noise = None
