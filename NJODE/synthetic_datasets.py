@@ -506,6 +506,7 @@ class ReflectedBM(StockModel):
     def _proj(self, x):
         # TODO prove it works. Florian's idea
         # TODO could probably pick z or k smartly. For sure should expand inside-out for k though
+        # NOTE this isn't really a projection. We're trying to figure out how often it bounces
         if self.lb < x < self.ub:
             return x
 

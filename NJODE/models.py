@@ -12,6 +12,7 @@ import numpy as np
 
 # =====================================================================================================================
 import torch
+from configs.config import OPTIMAL_PROJECTION_FUNCS
 
 
 # =====================================================================================================================
@@ -1144,8 +1145,8 @@ class NJODE_optimal_projection(NJODE):
         readout_nn,
         enc_nn,
         use_rnn,
-        projection_func,
         penalising_func,
+        data_dict,
         lmbda=1,
         bias=True,
         dropout_rate=0,
@@ -1169,10 +1170,10 @@ class NJODE_optimal_projection(NJODE):
             weight_decay,
             **options,
         )
-        self.project = projection_func
         self.penalising_func = penalising_func
         self.lmbda = lmbda
         self.which_loss = "cvx"
+        self.project = OPTIMAL_PROJECTION_FUNCS[data_dict]
 
     def forward(
         self,
@@ -1462,9 +1463,6 @@ class NJODE_optimal_projection(NJODE):
             )
         else:
             return h, loss
-
-    def evalute_LOB():
-        raise NotImplementedError("Not relevant for convex case")
 
 
 class NJODE_vertex_approach(NJODE):

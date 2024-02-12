@@ -366,7 +366,7 @@ def train(
     stockmodel = data_utils._STOCK_MODELS[dataset_metadata["model_name"]](
         **dataset_metadata
     )
-    if use_cond_exp:
+    if use_cond_exp and "other_model" not in options:
         opt_eval_loss = compute_optimal_eval_loss(
             dl_val, stockmodel, delta_t, T, mult=mult
         )
@@ -376,8 +376,6 @@ def train(
             )
         )
     else:
-        opt_eval_loss = np.nan
-    if "other_model" in options:
         opt_eval_loss = np.nan
 
     # get params_dict
@@ -396,6 +394,7 @@ def train(
         "solver": solver,
         "dataset": dataset,
         "dataset_id": dataset_id,
+        "data_dict": data_dict,
         "learning_rate": learning_rate,
         "test_size": test_size,
         "seed": seed,
@@ -459,11 +458,9 @@ def train(
     if "other_model" not in options:  # take NJODE model if not specified otherwise
         model = models.NJODE(**params_dict)  # get NJODE model class from
     elif options["other_model"] == "cvx_optimal_proj":
-        # TODO this is all basically placeholder rn
-        params_dict["projection_func"] = lambda x: x
+        lb, ub = dataset_metadata["lb"], dataset_metadata["ub"]
 
         def pen_func(Y):
-            lb, ub = dataset_metadata["lb"], dataset_metadata["ub"]
             if lb <= Y <= ub:
                 return torch.tensor(0.0)
             if Y < lb:

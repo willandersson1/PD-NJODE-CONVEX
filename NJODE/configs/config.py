@@ -4,6 +4,7 @@ author: Florian Krach
 
 import socket
 
+import torch
 from configs.config_utils import data_path, get_parameter_array, makedirs
 
 if "ada-" not in socket.gethostname():
@@ -206,4 +207,12 @@ plot_paths_RBM_dict = {
     "which": "best",
     "paths_to_plot": [0, 1],
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
+}
+
+OPTIMAL_PROJECTION_FUNCS = {
+    "RBM_1_dict": lambda x: torch.clamp(
+        x,
+        DATA_DICTS[param_dict_RBM_1["data_dict"][0]]["lb"],
+        DATA_DICTS[param_dict_RBM_1["data_dict"][0]]["ub"],
+    )
 }
