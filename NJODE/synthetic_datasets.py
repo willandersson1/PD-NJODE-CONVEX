@@ -368,7 +368,7 @@ class ReflectedBM(StockModel):
         self.max_z = max_z
         self.nb_paths = nb_paths
         self.dimension = dimension
-        self.dimensions = 1  # TODO not sure what this is for/if useful
+        self.dimensions = 1
         self.nb_steps = nb_steps
         self.maturity = maturity
         self.dt = maturity / nb_steps
@@ -384,11 +384,14 @@ class ReflectedBM(StockModel):
     def _get_bounds(self, a, b, k):
         return a + k * (b - a), b + k * (b - a)
 
+    def _in_shape(self, x):
+        return self.lb < x < self.ub
+
     def _proj(self, x):
         # TODO prove it works. Florian's idea
         # TODO could probably pick z or k smartly. For sure should expand inside-out for k though
         # NOTE this isn't really a projection. We're trying to figure out how often it bounces
-        if self.lb < x < self.ub:
+        if self._in_shape(x):
             return x
 
         for z in range(-self.max_z, self.max_z + 1):
@@ -596,6 +599,103 @@ class ReflectedBM(StockModel):
         raise NotImplementedError
 
 
+class Rectangle(StockModel):
+    def __init__(
+        self,
+        width,
+        length,
+        base_point,
+        mu_x,
+        sigma_x,
+        mu_y,
+        sigma_y,
+        max_terms,
+        max_z,
+        nb_paths,
+        dimension,
+        nb_steps,
+        maturity,
+        use_approx_paths_technique,
+        use_numerical_cond_exp,
+        **kwargs,
+    ):
+        assert width > 0 and length > 0
+
+        self.width = width
+        self.length = length
+        self.use_approx_paths_technique = use_approx_paths_technique
+        self.use_numerical_cond_exp = use_numerical_cond_exp
+        self.mu_x = mu_x
+        self.sigma_x = sigma_x
+        self.mu_y = mu_y
+        self.sigma_y = sigma_y
+        self.max_terms = max_terms
+        self.max_z = max_z
+        self.nb_paths = nb_paths
+        self.dimension = dimension
+        self.dimensions = 1  # TODO not sure what this is for/if useful, same for RBM
+        self.nb_steps = nb_steps
+        self.maturity = maturity
+        self.dt = maturity / nb_steps
+        self.loss = None
+        self.path_t = None
+        self.path_y = None
+        self.use_approx_paths_technique = use_approx_paths_technique
+        self.use_numerical_cond_exp = use_numerical_cond_exp
+        self.masked = True
+        self.track_obs_cov_mat = False
+        self.base_point = base_point
+
+        self.rbm_x = ReflectedBM(
+            mu=mu_x,
+            sigma=sigma_x,
+            max_terms=max_terms,
+            lb=self.base_point[0],
+            ub=self.base_point[0] + width,
+            max_z=max_z,
+            nb_paths=nb_paths,
+            dimension=dimension,
+            nb_steps=nb_steps,
+            maturity=maturity,
+            use_approx_paths_technique=use_approx_paths_technique,
+            use_numerical_cond_exp=use_numerical_cond_exp,
+        )
+
+        self.rbm_y = ReflectedBM(
+            mu=mu_y,
+            sigma=sigma_y,
+            max_terms=max_terms,
+            lb=self.base_point[1],
+            ub=self.base_point[1] + length,
+            max_z=max_z,
+            nb_paths=nb_paths,
+            dimension=dimension,
+            nb_steps=nb_steps,
+            maturity=maturity,
+            use_approx_paths_technique=use_approx_paths_technique,
+            use_numerical_cond_exp=use_numerical_cond_exp,
+        )
+
+    def _in_shape(self, x):
+        return self.rbm_x._in_shape(x[0]) and self.rbm_y._in_shape(x[1])
+
+    def generate_paths(self, x0=(None, None)):
+        paths_x, dt_x = self.rbm_x.generate_paths(x0[0])
+        paths_y, dt_y = self.rbm_y.generate_paths(x0[1])
+        assert dt_x == dt_y
+        return np.concatenate((paths_x, paths_y), axis=1), dt_x
+
+    def next_cond_exp(self, y, delta_t, current_t):
+        assert delta_t > 0
+        # y has shape (batch size, 2), since 2 is the process dimension
+        # Need to transform it into two variables with shape(batch size, 1)
+        y_x = np.array([[y_x] for y_x in y[:, 0]])
+        y_y = np.array([[y_x] for y_x in y[:, 1]])
+        cond_exp_x = self.rbm_x.next_cond_exp(y_x, delta_t, current_t)
+        cond_exp_y = self.rbm_y.next_cond_exp(y_y, delta_t, current_t)
+        return np.concatenate((cond_exp_x, cond_exp_y), axis=1)
+
+
 class Ball(StockModel):
     pass
 
@@ -631,10 +731,7 @@ def compute_loss(
 
 # ==============================================================================
 # dict for the supported stock models to get them from their name
-DATASETS = {
-    "FBM": FracBM,
-    "RBM": ReflectedBM,
-}
+DATASETS = {"FBM": FracBM, "RBM": ReflectedBM, "Rectangle": Rectangle}
 # ==============================================================================
 
 

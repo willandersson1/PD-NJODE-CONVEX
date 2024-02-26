@@ -25,7 +25,7 @@ import torch.nn as nn
 import tqdm  # process bar for iterations
 from configs import config
 from sklearn.model_selection import train_test_split
-from synthetic_datasets import ReflectedBM
+from synthetic_datasets import Rectangle, ReflectedBM
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
@@ -458,18 +458,9 @@ def train(
     if "other_model" not in options:  # take NJODE model if not specified otherwise
         model = models.NJODE(**params_dict)  # get NJODE model class from
     elif options["other_model"] == "cvx_optimal_proj":
-        lb, ub = dataset_metadata["lb"], dataset_metadata["ub"]
-
-        def pen_func(Y):
-            if lb <= Y <= ub:
-                return torch.tensor(0.0)
-            if Y < lb:
-                return torch.norm(Y - float(lb), 2)
-            if Y > ub:
-                return torch.norm(Y - float(ub), 2)
-
-        params_dict["penalising_func"] = pen_func
-        params_dict["lmbda"] = 1
+        # TODO this should be keyed by the param dict name, not the dataset
+        params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
+        params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
         model = models.NJODE_optimal_projection(**params_dict)
     else:
         raise ValueError(
@@ -926,10 +917,68 @@ def plot_one_path_with_pred(
         opt_loss = 0
 
     for i in path_to_plot:
+        skip_normal_plotting = False
         fig, axs = plt.subplots(dim)
         if dim == 1:
             axs = [axs]
+
+        if dataset_metadata["model_name"] == "Rectangle":
+            assert dim == 2
+            skip_normal_plotting = True
+
+            # get the true_X at observed dates
+            path_t_obs = []  # it's the same for both dimensions
+            path_X_obs = [[], []]
+            for j in [0, 1]:
+                for k, od in enumerate(observed_dates[i]):
+                    if od == 1:
+                        if true_M is None or (
+                            true_M is not None and true_M[i, j, k] == 1
+                        ):
+                            path_X_obs[j].append(true_X[i, j, k])
+                            if j == 0:  # only need it once
+                                path_t_obs.append(path_t_true_X[k])
+            path_t_obs = np.array(path_t_obs)
+            path_X_obs = np.array(path_X_obs)
+
+            fig = plt.figure()
+            ax = fig.add_subplot(projection="3d")
+            ax.scatter(
+                path_t_true_X,
+                true_X[i, 0, :],
+                true_X[i, 1, :],
+                label="true path",
+                color=colors[0],
+            )
+            ax.scatter(
+                path_t_obs,
+                path_X_obs[0, :],
+                path_X_obs[1, :],
+                label="observed",
+                color=colors[0],
+            )
+            ax.scatter(
+                path_t_pred,
+                path_y_pred[:, i, 0],
+                path_y_pred[:, i, 1],
+                label=model_name,
+                color=colors[1],
+            )
+            if use_cond_exp:
+                ax.scatter(
+                    path_t_true,
+                    path_y_true[:, i, 0],
+                    path_y_true[:, i, 1],
+                    label="true conditional expectation",
+                    linestyle=":",
+                    color=colors[2],
+                )
+            if plot_obs_prob and dataset_metadata is not None:
+                raise NotImplementedError()
+
         for j in range(dim):
+            if skip_normal_plotting:
+                break
             # get the true_X at observed dates
             path_t_obs = []
             path_X_obs = []
@@ -978,12 +1027,41 @@ def plot_one_path_with_pred(
                 high = np.max(true_X[i, :, :])
                 eps = (high - low) * 0.05
                 axs[j].set_ylim([low - eps, high + eps])
-
         axs[-1].legend()
+
         plt.xlabel("$t$")
         if isinstance(stockmodel, ReflectedBM):
             plt.axhline(y=stockmodel.lb)
             plt.axhline(y=stockmodel.ub)
+        elif isinstance(stockmodel, Rectangle):
+            t0, t1 = path_t_true_X[0], path_t_true_X[-1]
+            x_lb, x_ub = stockmodel.rbm_x.lb, stockmodel.rbm_x.ub
+            y_lb, y_ub = stockmodel.rbm_y.lb, stockmodel.rbm_y.ub
+            ax.plot(
+                [t0, t1],
+                [x_lb, x_lb],
+                [y_lb, y_lb],
+                color="gray",
+            )
+            ax.plot(
+                [t0, t1],
+                [x_ub, x_ub],
+                [y_lb, y_lb],
+                color="gray",
+            )
+            ax.plot(
+                [t0, t1],
+                [x_lb, x_lb],
+                [y_ub, y_ub],
+                color="gray",
+            )
+            ax.plot(
+                [t0, t1],
+                [x_ub, x_ub],
+                [y_ub, y_ub],
+                color="gray",
+            )
+
         save = os.path.join(save_path, filename.format(i))
         plt.savefig(save, **save_extras)
         plt.close()

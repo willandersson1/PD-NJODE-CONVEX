@@ -4,24 +4,21 @@ author: Florian Krach & Calypso Herrera
 code for running the experiments
 """
 
-# =====================================================================================================================
-import traceback
-import numpy as np
-import os
-import pandas as pd
 import json
+import json
+import os
 import socket
-import matplotlib
-from joblib import Parallel, delayed
-from absl import app
-from absl import flags
+import traceback
 
-from configs import config
 import extras
+import matplotlib
+import numpy as np
+import pandas as pd
+from absl import app, flags
+from configs import config
+from joblib import Parallel, delayed
 from train_switcher import train_switcher
 
-
-# =====================================================================================================================
 # FLAGS
 FLAGS = flags.FLAGS
 
