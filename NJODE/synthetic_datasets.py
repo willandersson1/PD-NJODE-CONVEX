@@ -447,8 +447,7 @@ class ReflectedBM(StockModel):
         # ax.plot(x, [p(t) for t in x], color='b')
         # ax.plot(x, [q(t) for t in x], color='r')
         # ax.plot(x, [2*q(t) for t in x], color='g') # TODO this works pretty well, but if I increase sigma it eventually gets worse. And 1/sigma, 1/(sigma**2) also wrong. Also for very small values of mu. Maybe can argue like that std dev larger than (ub - lb) doesn't make sense?
-
-        return NotImplementedError()
+        raise NotImplementedError()
 
     def generate_paths(self, x0=None):
         if x0 is None:

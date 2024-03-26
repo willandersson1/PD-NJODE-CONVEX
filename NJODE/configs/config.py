@@ -185,7 +185,7 @@ param_dict_RBM_1 = {
     "evaluate": [True],
     "paths_to_plot": [(0,)],
     "saved_models_path": [RBM_models_path],
-    "other_model": ["cvx_optimal_proj"],
+    "other_model": ["optimal_projection"],
 }
 param_list_RBM += get_parameter_array(param_dict=param_dict_RBM_1)
 
@@ -234,7 +234,7 @@ plot_paths_RBM_dict = {
 Rectangle_models_path = "{}saved_models_Rectangle/".format(data_path)
 param_list_Rectangle = []
 param_dict_Rectangle_1 = {
-    "epochs": [3],
+    "epochs": [500],
     "batch_size": [200],
     "save_every": [1],
     "learning_rate": [0.001],
@@ -256,7 +256,7 @@ param_dict_Rectangle_1 = {
     "evaluate": [True],
     "paths_to_plot": [(0,)],
     "saved_models_path": [Rectangle_models_path],
-    "other_model": ["cvx_optimal_proj"],
+    "other_model": ["optimal_projection"],
 }
 param_list_Rectangle += get_parameter_array(param_dict=param_dict_Rectangle_1)
 
@@ -299,9 +299,62 @@ plot_paths_Rectangle_dict = {
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
 
+# Rectangle vertex approach
+Rectangle_vertex_approach_models_path = (
+    "{}saved_models_Rectangle_vertex_approach/".format(data_path)
+)
+param_list_Rectangle_vertex_approach = []
+param_dict_Rectangle_1_vertex_approach = param_dict_Rectangle_1.copy()
+param_dict_Rectangle_1_vertex_approach["other_model"] = ["vertex_approach"]
+param_dict_Rectangle_1_vertex_approach["saved_models_path"] = [
+    Rectangle_vertex_approach_models_path
+]
+param_list_Rectangle_vertex_approach += get_parameter_array(
+    param_dict=param_dict_Rectangle_1_vertex_approach
+)
+overview_dict_Rectangle_vertex_approach = dict(
+    ids_from=1,
+    ids_to=len(param_list_Rectangle_vertex_approach),
+    path=Rectangle_vertex_approach_models_path,
+    params_extract_desc=(
+        "dataset",
+        "network_size",
+        "nb_layers",
+        "activation_function_1",
+        "use_rnn",
+        "readout_nn",
+        "dropout_rate",
+        "hidden_size",
+        "batch_size",
+        "which_loss",
+        "input_sig",
+        "level",
+    ),
+    val_test_params_extract=(
+        ("max", "epoch", "epoch", "epochs_trained"),
+        (
+            "min",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff_min",
+        ),
+        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
+    ),
+    sortby=["evaluation_mean_diff_min"],
+)
+plot_paths_Rectangle_vertex_approach_dict = {
+    "model_ids": [0],
+    "saved_models_path": Rectangle_vertex_approach_models_path,
+    "which": "best",
+    "paths_to_plot": [0],
+    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
+}
+
 
 # TODO shouldn't these be / aren't they defined in the respective dataset classes?
 def opt_RBM_proj(x, RBM_param_dict):
+    assert RBM_param_dict["other_model"][0] == "optimal_projection"
+
     return torch.clamp(
         x,
         DATA_DICTS[RBM_param_dict["data_dict"][0]]["lb"],
@@ -310,17 +363,36 @@ def opt_RBM_proj(x, RBM_param_dict):
 
 
 def opt_rect_proj(x, rect_param_dict):
+    assert rect_param_dict["other_model"][0] == "optimal_projection"
+
     data_dict = DATA_DICTS[rect_param_dict["data_dict"][0]]
     lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
     ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
     lower = torch.tensor([lb_x, lb_y])
     upper = torch.tensor([ub_x, ub_y])
+
     return torch.clamp(x, lower, upper)
 
 
 OPTIMAL_PROJECTION_FUNCS = {
     "RBM_1_dict": lambda x: opt_RBM_proj(x, param_dict_RBM_1),
     "Rectangle_1_dict": lambda x: opt_rect_proj(x, param_dict_Rectangle_1),
+}
+
+
+def get_ccw_rectangle_vertices(rect_param_dict):
+    data_dict = DATA_DICTS[rect_param_dict["data_dict"][0]]
+    lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
+    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
+
+    # counterclockwise, starting from bottom-left
+    v1, v2, v3, v4 = (lb_x, lb_y), (ub_x, lb_y), (ub_x, ub_y), (lb_x, ub_y)
+
+    return torch.tensor([v1, v2, v3, v4]).float()
+
+
+VERTEX_APPROACH_VERTICES = {
+    "Rectangle_1_dict": get_ccw_rectangle_vertices(param_dict_Rectangle_1)
 }
 
 

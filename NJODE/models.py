@@ -12,7 +12,7 @@ import numpy as np
 
 # =====================================================================================================================
 import torch
-from configs.config import OPTIMAL_PROJECTION_FUNCS
+from configs.config import OPTIMAL_PROJECTION_FUNCS, VERTEX_APPROACH_VERTICES
 
 
 # =====================================================================================================================
@@ -421,6 +421,88 @@ class FFNN(torch.nn.Module):
         elif self.case == 2:
             identity = nn_input[:, 0 : self.output_size]
             out = identity + out
+
+        if self.clamp is not None:
+            out = torch.clamp(out, min=-self.clamp, max=self.clamp)
+        return out
+
+    @property
+    def device(self):
+        device = next(self.parameters()).device
+        return device
+
+
+class VertexReadoutFFNN(torch.nn.Module):
+    def __init__(
+        self,
+        input_size,
+        nn_desc,
+        vertices,
+        dropout_rate=0.0,
+        bias=True,
+        masked=False,
+        residual=False,
+        sig_depth=3,
+        clamp=None,
+        **kwargs,
+    ):
+        super().__init__()
+        self.vertices = vertices
+        output_size = vertices.shape[0]
+
+        in_size = input_size
+        if masked:
+            in_size = 2 * input_size
+        self.masked = masked
+        self.sig_depth = sig_depth
+        self.clamp = clamp
+        self.lstm = None
+        self.ffnn = get_ffnn(
+            input_size=in_size,
+            output_size=output_size,  # number of vertices
+            nn_desc=nn_desc,
+            dropout_rate=dropout_rate,
+            bias=bias,
+        )
+
+        # TODO should make this work properly
+        if True:  # residual and not self.recurrent and not self.use_lstm:
+            print(
+                "use residual network: input_size={}, output_size={}".format(
+                    input_size, output_size
+                )
+            )
+            if input_size <= output_size:
+                self.case = 1
+            if input_size > output_size:
+                self.case = 2
+        else:
+            self.case = 0
+
+    def forward(self, nn_input, mask=None, sig=None, h=None, t=None):
+        x = torch.tanh(nn_input)  # maybe not helpful
+        if self.masked:
+            assert mask is not None
+            x = torch.cat((x, mask), dim=1)
+        out = self.ffnn(x.float())
+
+        # apply sigmoid then interpret as convex combination to get a point
+        out = torch.sigmoid(out)
+        out = torch.matmul(out, self.vertices)
+
+        # TODO do I really need this? If I'm adding identity then could be outside of Q
+        # same for optimal proj
+        # if self.case == 0:
+        #     pass
+        # elif self.case == 1:
+        #     identity = torch.zeros((nn_input.shape[0], self.output_size)).to(
+        #         self.device
+        #     )
+        #     identity[:, 0 : nn_input.shape[1]] = nn_input
+        #     out = identity + out
+        # elif self.case == 2:
+        #     identity = nn_input[:, 0 : self.output_size]
+        #     out = identity + out
 
         if self.clamp is not None:
             out = torch.clamp(out, min=-self.clamp, max=self.clamp)
@@ -1131,7 +1213,7 @@ class NJODE(torch.nn.Module):
         return cl_loss, cl_out
 
 
-class NJODE_optimal_projection(NJODE):
+class NJODE_convex_projection(NJODE):
     """
     NJ-ODE model with optimal projection onto convex set. Inherits from normal NJODE
     """
@@ -1146,7 +1228,7 @@ class NJODE_optimal_projection(NJODE):
         enc_nn,
         use_rnn,
         penalising_func,
-        data_dict,
+        project,
         lmbda=1,
         bias=True,
         dropout_rate=0,
@@ -1172,8 +1254,8 @@ class NJODE_optimal_projection(NJODE):
         )
         self.penalising_func = penalising_func
         self.lmbda = lmbda
+        self.project = project
         self.which_loss = "cvx"
-        self.project = OPTIMAL_PROJECTION_FUNCS[data_dict]
 
     def forward(
         self,
@@ -1466,4 +1548,345 @@ class NJODE_optimal_projection(NJODE):
 
 
 class NJODE_vertex_approach(NJODE):
-    pass
+    """
+    NJ-ODE model with vertex approach. Inherits from normal NJODE
+    """
+
+    def __init__(  # initialize the class by naming relevant features
+        self,
+        input_size,
+        hidden_size,
+        output_size,
+        ode_nn,
+        readout_nn,
+        enc_nn,
+        use_rnn,
+        penalising_func,
+        vertices,
+        lmbda=1,
+        bias=True,
+        dropout_rate=0,
+        solver="euler",
+        weight=0.5,
+        weight_decay=1.0,
+        **options,
+    ):
+        super().__init__(
+            input_size,
+            hidden_size,
+            output_size,
+            ode_nn,
+            readout_nn,
+            enc_nn,
+            use_rnn,
+            bias,
+            dropout_rate,
+            solver,
+            weight,
+            weight_decay,
+            **options,
+        )
+        self.penalising_func = penalising_func
+        self.lmbda = lmbda
+        self.which_loss = "cvx"
+        self.vertices = vertices  # tensor shape (1, num, d_X)
+
+        assert vertices.shape[1] == input_size
+
+        # Do the readout map differently
+        self.readout_map = VertexReadoutFFNN(
+            input_size=hidden_size,
+            nn_desc=readout_nn,
+            vertices=vertices,
+            dropout_rate=dropout_rate,
+            bias=bias,
+            residual=self.residual_enc_dec,
+            clamp=self.clamp,
+        )
+
+    def forward(
+        self,
+        times,
+        time_ptr,
+        X,
+        obs_idx,
+        delta_t,
+        T,
+        start_X,
+        n_obs_ot,
+        return_path=False,
+        get_loss=True,
+        until_T=False,
+        M=None,
+        start_M=None,
+        which_loss=None,
+        dim_to=None,
+        return_at_last_obs=False,
+    ):
+        """
+        TODO update this string
+        the forward run of this module class, used when calling the module
+        instance without a method
+        :param times: np.array, of observation times
+        :param time_ptr: list, start indices of X and obs_idx for a given
+                observation time, first element is 0, this pointer tells how
+                many (and which) of the observations of X along the batch-dim
+                belong to the current time, and obs_idx then tells to which of
+                the batch elements they belong. In particular, not each batch-
+                element has to jump at the same time, and only those elements
+                which jump at the current time should be updated with a jump
+        :param X: torch.tensor, data tensor
+        :param obs_idx: list, index of the batch elements where jumps occur at
+                current time
+        :param delta_t: float, time step for Euler
+        :param T: float, the final time
+        :param start_X: torch.tensor, the starting point of X
+        :param n_obs_ot: torch.tensor, the number of observations over the
+                entire time interval for each element of the batch
+        :param return_path: bool, whether to return the path of h
+        :param get_loss: bool, whether to compute the loss, otherwise 0 returned
+        :param until_T: bool, whether to continue until T (for eval) or only
+                until last observation (for training)
+        :param M: None or torch.tensor, if not None: the mask for the data, same
+                size as X, with 0 or 1 entries
+        :param start_M: None or torch.tensor, if not None: the mask for start_X,
+                same size as start_X
+        :param which_loss: see train.train, to overwrite which loss for eval
+        :param dim_to: None or int, if given not all coordinates along the
+                data-dimension axis are used but only up to dim_to. this can be
+                used if func_appl_X is used in train, but the loss etc. should
+                only be computed for the original coordinates (without those
+                resulting from the function applications)
+        :param predict_labels: None or torch.tensor with the true labels to
+                predict
+        :param return_classifier_out: bool, whether to return the output of the
+                classifier
+        :return: torch.tensor (hidden state at final time), torch.tensor (loss),
+                    if wanted the paths of t (np.array) and h, y (torch.tensors)
+        """
+        if which_loss is None:
+            which_loss = self.which_loss
+
+        last_X = start_X
+        batch_size = start_X.size()[0]
+        data_dim = start_X.size()[1]
+        if dim_to is None:
+            dim_to = data_dim
+        if self.coord_wise_tau:
+            tau = torch.tensor([[0.0]]).repeat(batch_size, data_dim).to(self.device)
+        else:
+            tau = torch.tensor([[0.0]]).repeat(batch_size, 1).to(self.device)
+        current_time = 0.0
+        loss = 0
+        c_sig = None
+
+        if self.input_sig:  # TODO need this?
+            if self.masked:
+                Mdc = M.clone()
+                Mdc[Mdc == 0] = np.nan
+                X_obs_impute = X * Mdc
+                signature = self.get_signature(
+                    times=times,
+                    time_ptr=time_ptr,
+                    X=X_obs_impute,
+                    obs_idx=obs_idx,
+                    start_X=start_X,
+                )
+            else:
+                signature = self.get_signature(
+                    times=times,
+                    time_ptr=time_ptr,
+                    X=X,
+                    obs_idx=obs_idx,
+                    start_X=start_X,
+                )
+
+            # in beginning, no path was observed => set sig to 0
+            current_sig = np.zeros((batch_size, self.sig_depth))
+            current_sig_nb = np.zeros(batch_size).astype(int)
+            c_sig = torch.from_numpy(current_sig).float().to(self.device)
+
+        if self.masked:
+            if start_M is None:
+                start_M = torch.ones_like(start_X)
+        else:
+            start_M = None
+
+        h = self.encoder_map(
+            start_X,
+            mask=start_M,
+            sig=c_sig,
+            h=torch.zeros((batch_size, self.hidden_size)).to(self.device),
+            t=torch.cat((tau, current_time - tau), dim=1).to(self.device),
+        )
+
+        if return_path:
+            path_t = [0]
+            path_h = [h]
+            path_y = [self.readout_map(h)]  # TODO should proj here?
+        h_at_last_obs = h.clone()
+        sig_at_last_obs = c_sig
+
+        assert len(times) + 1 == len(time_ptr)
+
+        for i, obs_time in enumerate(times):
+            # Propagation of the ODE until next observation
+            while current_time < (
+                obs_time - 1e-10 * delta_t
+            ):  # 0.0001 delta_t used for numerical consistency.
+                if current_time < obs_time - delta_t:
+                    delta_t_ = delta_t
+                else:
+                    delta_t_ = obs_time - current_time
+                if self.solver == "euler":
+                    h, current_time = self.ode_step(
+                        h,
+                        delta_t_,
+                        current_time,
+                        last_X=last_X,
+                        tau=tau,
+                        signature=c_sig,
+                    )
+                else:
+                    raise NotImplementedError
+
+                # Storing the predictions.
+                if return_path:
+                    path_t.append(current_time)
+                    path_h.append(h)
+                    path_y.append(
+                        self.readout_map(h)
+                    )  # TODO should this be before projection?
+
+            # Reached an observation - only update those elements of the batch,
+            #    for which an observation is made
+            start = time_ptr[i]
+            end = time_ptr[i + 1]
+            X_obs = X[start:end]
+            i_obs = obs_idx[start:end]
+            if self.masked:
+                if isinstance(M, np.ndarray):
+                    M_obs = torch.from_numpy(M[start:end]).to(self.device)
+                else:
+                    M_obs = M[start:end]
+            else:
+                M_obs = None
+
+            # update signature
+            if self.input_sig:
+                for j in i_obs:
+                    current_sig[j, :] = signature[j][current_sig_nb[j]]
+                current_sig_nb[i_obs] += 1
+                c_sig = torch.from_numpy(current_sig).float().to(self.device)
+
+            # Using RNNCell to update h. Also updating loss, tau and last_X
+            Y_bj_before_proj = self.readout_map(h)  # TODO: proj here? and in next line
+            Y_bj = Y_bj_before_proj
+            X_obs_impute = X_obs
+            temp = h.clone()
+            if self.masked:
+                X_obs_impute = (
+                    X_obs * M_obs
+                    + (torch.ones_like(M_obs.long()) - M_obs) * Y_bj[i_obs.long()]
+                )
+            c_sig_iobs = None
+            if self.input_sig:
+                c_sig_iobs = c_sig[i_obs]
+
+            temp[i_obs.long()] = self.encoder_map(
+                X_obs_impute,
+                mask=M_obs,
+                sig=c_sig_iobs,
+                h=h[i_obs],
+                t=torch.cat((tau[i_obs], current_time - tau[i_obs]), dim=1),
+            )
+            h = temp
+            Y_before_proj = self.readout_map(h)  # TODO: proj here? and in next line
+            Y = Y_before_proj
+
+            # update h and sig at last observation
+            h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
+            sig_at_last_obs = c_sig
+
+            if get_loss:
+                loss = (
+                    loss
+                    + LOSS_FUN_DICT[which_loss](  # NOTE: changed here for project
+                        X_obs=X_obs[:, :dim_to],
+                        Y_obs=Y[i_obs.long(), :dim_to],
+                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
+                        n_obs_ot=n_obs_ot[i_obs.long()],
+                        batch_size=batch_size,
+                        penalising_func=self.penalising_func,
+                        Y_obs_before_proj=Y_before_proj[i_obs.long(), :dim_to],
+                        Y_obs_bj_before_proj=Y_bj_before_proj[i_obs.long(), :dim_to],
+                        lmbda=self.lmbda,
+                        weight=self.weight,
+                        M_obs=M_obs,
+                    )
+                )
+
+            # make update of last_X and tau, that is not inplace
+            #    (otherwise problems in autograd)
+            temp_X = last_X.clone()
+            temp_tau = tau.clone()
+            if self.masked and self.use_y_for_ode:
+                temp_X[i_obs.long()] = Y[i_obs.long()]
+            else:
+                temp_X[i_obs.long()] = X_obs_impute
+            if self.coord_wise_tau:
+                _M = torch.zeros_like(temp_tau)
+                _M[i_obs] = M_obs
+                temp_tau[_M == 1] = obs_time.astype(np.float64)
+            else:
+                temp_tau[i_obs.long()] = obs_time.astype(np.float64)
+            last_X = temp_X
+            tau = temp_tau
+
+            if return_path:
+                path_t.append(obs_time)
+                path_h.append(h)
+                path_y.append(Y)
+
+        # after every observation has been processed, propagating until T
+        if until_T:
+            if self.input_sig:
+                c_sig = torch.from_numpy(current_sig).float()
+            while current_time < T - 1e-10 * delta_t:
+                if current_time < T - delta_t:
+                    delta_t_ = delta_t
+                else:
+                    delta_t_ = T - current_time
+                if self.solver == "euler":
+                    h, current_time = self.ode_step(
+                        h,
+                        delta_t_,
+                        current_time,
+                        last_X=last_X,
+                        tau=tau,
+                        signature=c_sig,
+                    )
+                else:
+                    raise NotImplementedError
+
+                # Storing the predictions.
+                if return_path:
+                    path_t.append(current_time)
+                    path_h.append(h)
+                    path_y.append(
+                        self.readout_map(h)
+                    )  # TODO: proj here? and in next line
+
+        if return_at_last_obs:
+            return h_at_last_obs, sig_at_last_obs
+        if return_path:
+            # path dimension: [time_steps, batch_size, output_size]
+            return (
+                h,
+                loss,
+                np.array(path_t),
+                torch.stack(path_h),
+                torch.stack(path_y)[:, :, :dim_to],
+            )
+        else:
+            return h, loss

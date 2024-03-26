@@ -4,7 +4,6 @@ author: Florian Krach & Calypso Herrera
 data utilities for creating and loading synthetic test datasets
 """
 
-
 import copy
 import json
 import os
@@ -217,7 +216,7 @@ def _get_dataset_name_id_from_dict(data_dict):
     df_overview, _ = get_dataset_overview()
     which = df_overview.loc[df_overview["description"] == desc].index
     if len(which) == 0:
-        ValueError(
+        raise ValueError(
             "the given dataset does not exist yet, please generate it "
             "first using data_utils.py. \ndata_dict: {}".format(data_dict)
         )

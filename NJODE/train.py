@@ -457,11 +457,17 @@ def train(
     # get the model & optimizer
     if "other_model" not in options:  # take NJODE model if not specified otherwise
         model = models.NJODE(**params_dict)  # get NJODE model class from
-    elif options["other_model"] == "cvx_optimal_proj":
+    elif options["other_model"] == "optimal_projection":
         # TODO this should be keyed by the param dict name, not the dataset
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
-        model = models.NJODE_optimal_projection(**params_dict)
+        params_dict["project"] = config.OPTIMAL_PROJECTION_FUNCS[data_dict]
+        model = models.NJODE_convex_projection(**params_dict)
+    elif options["other_model"] == "vertex_approach":
+        params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
+        params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
+        params_dict["vertices"] = config.VERTEX_APPROACH_VERTICES[data_dict]
+        model = models.NJODE_vertex_approach(**params_dict)
     else:
         raise ValueError(
             "Invalid argument for (option) parameter 'other_model'."
