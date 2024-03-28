@@ -4,7 +4,6 @@ author: Florian Krach & Calypso Herrera
 code for all additional things, like plotting, getting overviews etc.
 """
 
-
 import json
 import os
 import socket

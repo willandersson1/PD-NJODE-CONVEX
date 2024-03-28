@@ -12,7 +12,6 @@ import numpy as np
 
 # =====================================================================================================================
 import torch
-from configs.config import OPTIMAL_PROJECTION_FUNCS, VERTEX_APPROACH_VERTICES
 
 
 # =====================================================================================================================
@@ -130,13 +129,13 @@ def compute_loss_cvx(
     weight=0.5,
     M_obs=None,
 ):
-    pen_1 = penalising_func(Y_obs_before_proj)
-    pen_2 = penalising_func(Y_obs_bj_before_proj)
-    cvx_loss = lmbda * (1 / torch.sum(n_obs_ot)) * (pen_1 + pen_2)
-    cvx_loss /= batch_size
     original_loss = compute_loss(
         X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps, weight, M_obs
     )
+    pen_1 = torch.sum(penalising_func(Y_obs_before_proj) / n_obs_ot)
+    pen_2 = torch.sum(penalising_func(Y_obs_bj_before_proj) / n_obs_ot)
+    cvx_loss = lmbda * (pen_1 + pen_2)
+    cvx_loss /= batch_size
     loss = cvx_loss + original_loss
 
     return loss
@@ -421,88 +420,6 @@ class FFNN(torch.nn.Module):
         elif self.case == 2:
             identity = nn_input[:, 0 : self.output_size]
             out = identity + out
-
-        if self.clamp is not None:
-            out = torch.clamp(out, min=-self.clamp, max=self.clamp)
-        return out
-
-    @property
-    def device(self):
-        device = next(self.parameters()).device
-        return device
-
-
-class VertexReadoutFFNN(torch.nn.Module):
-    def __init__(
-        self,
-        input_size,
-        nn_desc,
-        vertices,
-        dropout_rate=0.0,
-        bias=True,
-        masked=False,
-        residual=False,
-        sig_depth=3,
-        clamp=None,
-        **kwargs,
-    ):
-        super().__init__()
-        self.vertices = vertices
-        output_size = vertices.shape[0]
-
-        in_size = input_size
-        if masked:
-            in_size = 2 * input_size
-        self.masked = masked
-        self.sig_depth = sig_depth
-        self.clamp = clamp
-        self.lstm = None
-        self.ffnn = get_ffnn(
-            input_size=in_size,
-            output_size=output_size,  # number of vertices
-            nn_desc=nn_desc,
-            dropout_rate=dropout_rate,
-            bias=bias,
-        )
-
-        # TODO should make this work properly
-        if True:  # residual and not self.recurrent and not self.use_lstm:
-            print(
-                "use residual network: input_size={}, output_size={}".format(
-                    input_size, output_size
-                )
-            )
-            if input_size <= output_size:
-                self.case = 1
-            if input_size > output_size:
-                self.case = 2
-        else:
-            self.case = 0
-
-    def forward(self, nn_input, mask=None, sig=None, h=None, t=None):
-        x = torch.tanh(nn_input)  # maybe not helpful
-        if self.masked:
-            assert mask is not None
-            x = torch.cat((x, mask), dim=1)
-        out = self.ffnn(x.float())
-
-        # apply sigmoid then interpret as convex combination to get a point
-        out = torch.sigmoid(out)
-        out = torch.matmul(out, self.vertices)
-
-        # TODO do I really need this? If I'm adding identity then could be outside of Q
-        # same for optimal proj
-        # if self.case == 0:
-        #     pass
-        # elif self.case == 1:
-        #     identity = torch.zeros((nn_input.shape[0], self.output_size)).to(
-        #         self.device
-        #     )
-        #     identity[:, 0 : nn_input.shape[1]] = nn_input
-        #     out = identity + out
-        # elif self.case == 2:
-        #     identity = nn_input[:, 0 : self.output_size]
-        #     out = identity + out
 
         if self.clamp is not None:
             out = torch.clamp(out, min=-self.clamp, max=self.clamp)
@@ -1574,7 +1491,7 @@ class NJODE_vertex_approach(NJODE):
         super().__init__(
             input_size,
             hidden_size,
-            output_size,
+            len(vertices),
             ode_nn,
             readout_nn,
             enc_nn,
@@ -1593,16 +1510,17 @@ class NJODE_vertex_approach(NJODE):
 
         assert vertices.shape[1] == input_size
 
-        # Do the readout map differently
-        self.readout_map = VertexReadoutFFNN(
-            input_size=hidden_size,
-            nn_desc=readout_nn,
-            vertices=vertices,
-            dropout_rate=dropout_rate,
-            bias=bias,
-            residual=self.residual_enc_dec,
-            clamp=self.clamp,
-        )
+        # Hack to do the final projection/application of convex combination
+        old_forward = self.readout_map.forward
+
+        def new_forward(x):
+            first = old_forward(x)
+            weights = torch.nn.Softmax(dim=1)(first)
+            as_point = torch.matmul(weights, self.vertices)
+
+            return as_point
+
+        self.readout_map.forward = new_forward
 
     def forward(
         self,

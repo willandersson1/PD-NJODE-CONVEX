@@ -388,7 +388,6 @@ class ReflectedBM(StockModel):
         return self.lb < x < self.ub
 
     def _proj(self, x):
-        # TODO prove it works. Florian's idea
         # TODO could probably pick z or k smartly. For sure should expand inside-out for k though
         # NOTE this isn't really a projection. We're trying to figure out how often it bounces
         if self._in_shape(x):
@@ -591,6 +590,7 @@ class ReflectedBM(StockModel):
         for i, x0 in enumerate(y):
             integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
             out[i] = quad(integrand, self.lb, self.ub)[0]
+            assert self.lb <= out[i] <= self.ub
 
         return out
 

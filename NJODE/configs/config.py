@@ -39,7 +39,7 @@ DATA_DICTS = {
     },
     "RBM_1_dict": {
         "model_name": "RBM",
-        "nb_paths": 2,
+        "nb_paths": 10,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 1,
@@ -55,7 +55,7 @@ DATA_DICTS = {
     },
     "Rectangle_1_dict": {
         "model_name": "Rectangle",
-        "nb_paths": 2,
+        "nb_paths": 10,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -70,7 +70,7 @@ DATA_DICTS = {
         "use_numerical_cond_exp": True,
         "width": 4,
         "length": 6,
-        "base_point": (0, 0),
+        "base_point": (1, 1),
     },
 }
 
@@ -106,15 +106,7 @@ param_dict_FBM1_1 = {
     "data_dict": ["FBM_1_dict"],
     "plot": [True],
     "evaluate": [True],
-    "paths_to_plot": [
-        (
-            0,
-            1,
-            2,
-            3,
-            4,
-        )
-    ],
+    "paths_to_plot": [(0,)],
     "saved_models_path": [FBM_models_path],
 }
 param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_1)
@@ -151,10 +143,10 @@ overview_dict_FBM1 = dict(
 )
 
 plot_paths_FBM_dict = {
-    "model_ids": [33, 34, 35, 41, 43, 50],
+    "model_ids": [1, 2],
     "saved_models_path": FBM_models_path,
     "which": "best",
-    "paths_to_plot": [0, 1, 2, 3, 4, 5],
+    "paths_to_plot": [0, 1],
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
 
@@ -163,7 +155,7 @@ plot_paths_FBM_dict = {
 RBM_models_path = "{}saved_models_RBM/".format(data_path)
 param_list_RBM = []
 param_dict_RBM_1 = {
-    "epochs": [3],
+    "epochs": [10],
     "batch_size": [200],
     "save_every": [1],
     "learning_rate": [0.001],
@@ -299,6 +291,7 @@ plot_paths_Rectangle_dict = {
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
 
+####
 # Rectangle vertex approach
 Rectangle_vertex_approach_models_path = (
     "{}saved_models_Rectangle_vertex_approach/".format(data_path)
@@ -397,36 +390,34 @@ VERTEX_APPROACH_VERTICES = {
 
 
 def standard_2_norm_for_lb_ub(Y, lb, ub):
-    if lb <= Y <= ub:
-        return torch.norm(Y - Y, 2)  # TODO I guess I need? to keep grad?
-    if Y < lb:
-        return torch.norm(Y - float(lb), 2)
-    if Y > ub:
-        return torch.norm(Y - float(ub), 2)
+    lb_norm = torch.norm(Y - float(lb), 2, dim=1)
+    ub_norm = torch.norm(Y - float(ub), 2, dim=1)
+    closest = torch.min(lb_norm, ub_norm)
+    mask = torch.ones_like(closest)
+    for i in range(len(Y)):
+        if lb <= Y[i] <= ub:
+            mask[i] = 0
+
+    return mask * closest
 
 
 def rect_pen_func(Y, data_dict):
     lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
     ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
-    compare_to_list = [0, 0]
 
-    # TODO got to be a better way to do this
-    if Y[0][0] < lb_x:
-        compare_to_list[0] = lb_x
-    elif Y[0][0] > ub_x:
-        compare_to_list[0] = lb_x
-    else:
-        compare_to_list[0] = float(Y[0][0])  # it's good so ignore this coordinate
+    # Separable so just project each coordinate independently
+    projected = Y.clone().detach()
+    for i in range(len(Y)):
+        if not (lb_x <= Y[i][0] <= ub_x):
+            projected[i][0] = torch.min(
+                torch.norm(Y[i][0] - lb_x, 1), torch.norm(Y[i][0] - ub_x, 1)
+            )
+        if not (lb_y <= Y[i][1] <= ub_y):
+            projected[i][1] = torch.min(
+                torch.norm(Y[i][1] - lb_y, 1), torch.norm(Y[i][1] - ub_y, 1)
+            )
 
-    if Y[0][1] < lb_y:
-        compare_to_list[0] = lb_y
-    elif Y[0][1] > ub_y:
-        compare_to_list[0] = lb_y
-    else:
-        compare_to_list[0] = float(Y[0][1])
-
-    compare_to = torch.tensor([compare_to_list], dtype=float)
-    return torch.norm(Y - compare_to, 2)
+    return torch.norm(Y - projected, 2, dim=1)
 
 
 # TODO actually these should be keyed by the model params, not the dataset name
