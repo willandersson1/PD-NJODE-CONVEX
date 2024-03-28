@@ -366,7 +366,13 @@ def train(
     stockmodel = data_utils._STOCK_MODELS[dataset_metadata["model_name"]](
         **dataset_metadata
     )
-    if use_cond_exp and "other_model" not in options:
+    # TODO will have to adjust this when adding a new model
+    if (
+        use_cond_exp
+        and "other_model" not in options
+        or use_cond_exp
+        and False  # dataset_metadata["model_name"] in {"Rectangle", "RBM"} # TODO undo this
+    ):
         opt_eval_loss = compute_optimal_eval_loss(
             dl_val, stockmodel, delta_t, T, mult=mult
         )
@@ -947,40 +953,50 @@ def plot_one_path_with_pred(
             path_t_obs = np.array(path_t_obs)
             path_X_obs = np.array(path_X_obs)
 
-            fig = plt.figure()
-            ax = fig.add_subplot(projection="3d")
-            ax.scatter(
-                path_t_true_X,
-                true_X[i, 0, :],
-                true_X[i, 1, :],
-                label="true path",
-                color=colors[0],
-            )
-            ax.scatter(
-                path_t_obs,
-                path_X_obs[0, :],
-                path_X_obs[1, :],
-                label="observed",
-                color=colors[0],
-            )
-            ax.scatter(
-                path_t_pred,
-                path_y_pred[:, i, 0],
-                path_y_pred[:, i, 1],
-                label=model_name,
-                color=colors[1],
-            )
-            if use_cond_exp:
+            fig = plt.figure(figsize=(16, 4))
+            my_axs = [
+                fig.add_subplot(pos, projection="3d") for pos in [141, 142, 143, 144]
+            ]
+            angles = [
+                (None, None),  # standard view
+                (0, 0),  # (x, y)
+                (0, -90),  # (t, y)
+                (90, -90),  # (t, x)
+            ]
+
+            for ax in my_axs:
                 ax.scatter(
-                    path_t_true,
-                    path_y_true[:, i, 0],
-                    path_y_true[:, i, 1],
-                    label="true conditional expectation",
-                    linestyle=":",
-                    color=colors[2],
+                    path_t_true_X,
+                    true_X[i, 0, :],
+                    true_X[i, 1, :],
+                    label="true path",
+                    color=colors[0],
                 )
-            if plot_obs_prob and dataset_metadata is not None:
-                raise NotImplementedError()
+                ax.scatter(
+                    path_t_obs,
+                    path_X_obs[0, :],
+                    path_X_obs[1, :],
+                    label="observed",
+                    color=colors[0],
+                )
+                ax.scatter(
+                    path_t_pred,
+                    path_y_pred[:, i, 0],
+                    path_y_pred[:, i, 1],
+                    label=model_name,
+                    color=colors[1],
+                )
+                if use_cond_exp:
+                    ax.scatter(
+                        path_t_true,
+                        path_y_true[:, i, 0],
+                        path_y_true[:, i, 1],
+                        label="true conditional expectation",
+                        linestyle=":",
+                        color=colors[2],
+                    )
+                if plot_obs_prob and dataset_metadata is not None:
+                    raise NotImplementedError()
 
         for j in range(dim):
             if skip_normal_plotting:
@@ -1043,30 +1059,32 @@ def plot_one_path_with_pred(
             t0, t1 = path_t_true_X[0], path_t_true_X[-1]
             x_lb, x_ub = stockmodel.rbm_x.lb, stockmodel.rbm_x.ub
             y_lb, y_ub = stockmodel.rbm_y.lb, stockmodel.rbm_y.ub
-            ax.plot(
-                [t0, t1],
-                [x_lb, x_lb],
-                [y_lb, y_lb],
-                color="gray",
-            )
-            ax.plot(
-                [t0, t1],
-                [x_ub, x_ub],
-                [y_lb, y_lb],
-                color="gray",
-            )
-            ax.plot(
-                [t0, t1],
-                [x_lb, x_lb],
-                [y_ub, y_ub],
-                color="gray",
-            )
-            ax.plot(
-                [t0, t1],
-                [x_ub, x_ub],
-                [y_ub, y_ub],
-                color="gray",
-            )
+            for ax, (a1, a2) in zip(my_axs, angles):
+                ax.plot(
+                    [t0, t1],
+                    [x_lb, x_lb],
+                    [y_lb, y_lb],
+                    color="gray",
+                )
+                ax.plot(
+                    [t0, t1],
+                    [x_ub, x_ub],
+                    [y_lb, y_lb],
+                    color="gray",
+                )
+                ax.plot(
+                    [t0, t1],
+                    [x_lb, x_lb],
+                    [y_ub, y_ub],
+                    color="gray",
+                )
+                ax.plot(
+                    [t0, t1],
+                    [x_ub, x_ub],
+                    [y_ub, y_ub],
+                    color="gray",
+                )
+                ax.view_init(a1, a2)
 
         save = os.path.join(save_path, filename.format(i))
         plt.savefig(save, **save_extras)
