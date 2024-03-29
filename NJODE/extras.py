@@ -302,7 +302,6 @@ def get_training_overview(
         desc = df.loc[i, "description"]
         param_dict = json.loads(desc)
 
-        values = []
         for param in params_extract_desc:
             try:
                 if param == "network_size":
@@ -317,10 +316,11 @@ def get_training_overview(
                     v = param_dict[p1][p2]
                 else:
                     v = param_dict[param]
-                values.append(v)
+                if isinstance(v, (list, tuple, dict)):
+                    v = str(v)
             except Exception:
-                values.append(None)
-        df.loc[i, params_extract_desc] = values
+                v = None
+            df.loc[i, param] = v
 
         id = df.loc[i, "id"]
         file_n = "{}id-{}/metric_id-{}.csv".format(path, id, id)
