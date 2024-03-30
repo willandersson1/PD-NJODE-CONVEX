@@ -55,21 +55,21 @@ DATA_DICTS = {
     },
     "Rectangle_1_dict": {
         "model_name": "Rectangle",
-        "nb_paths": 10,
-        "nb_steps": 100,
-        "maturity": 1.0,
+        "nb_paths": 3,
+        "nb_steps": 1000,
+        "maturity": 5.0,
         "dimension": 2,
         "obs_perc": 0.1,
-        "mu_x": 1.5,
+        "mu_x": 2.0,
         "sigma_x": 1.0,
-        "mu_y": 1.0,
+        "mu_y": 5.0,
         "sigma_y": 1.0,
         "max_z": 5,
         "max_terms": 3,
         "use_approx_paths_technique": True,
         "use_numerical_cond_exp": True,
         "width": 4,
-        "length": 6,
+        "length": 10,
         "base_point": (1, 1),
     },
 }
@@ -143,10 +143,10 @@ overview_dict_FBM1 = dict(
 )
 
 plot_paths_FBM_dict = {
-    "model_ids": [1, 2],
+    "model_ids": [1],
     "saved_models_path": FBM_models_path,
     "which": "best",
-    "paths_to_plot": [0, 1],
+    "paths_to_plot": [0],
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
 
@@ -226,7 +226,7 @@ plot_paths_RBM_dict = {
 Rectangle_models_path = "{}saved_models_Rectangle/".format(data_path)
 param_list_Rectangle = []
 param_dict_Rectangle_1 = {
-    "epochs": [500],
+    "epochs": [3],
     "batch_size": [200],
     "save_every": [1],
     "learning_rate": [0.001],
