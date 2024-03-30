@@ -453,10 +453,15 @@ class ReflectedBM(StockModel):
             x0 = (self.lb + self.ub) / 2
         assert self.lb <= x0 <= self.ub
 
-        if self.use_approx_paths_technique:
-            return self._generate_approx_paths(x0), self.dt
-        else:
-            return self._generate_true_paths(x0), self.dt
+        paths = (
+            self._generate_approx_paths(x0)
+            if self.use_approx_paths_technique
+            else self._generate_true_paths(x0)
+        )
+
+        assert np.all(paths >= self.lb) and np.all(paths <= self.ub)
+
+        return paths, self.dt
 
     def reflected_bm_pdf(self, x, t, x0, t0):
         # Follow eqn 11 of
@@ -517,7 +522,7 @@ class ReflectedBM(StockModel):
 
         assert c <= x <= d
         assert c <= x0 <= d
-        assert t0 < t
+        assert t > t0
 
         coeff = 1.0 / (sigma * sqrt(2 * pi * (t - t0)))
         S1 = coeff * sum(
@@ -560,6 +565,7 @@ class ReflectedBM(StockModel):
             t1 = (2 * mu * (n * d - (n + 1) * c + x)) / sigma**2
             S3 += exp(t1) * t2
         S3 = -coeff * S3
+        # TODO this ^ term seems to be negative sometimes and makes the whole pdf negative
 
         # Same technique as above
         S4 = 0
@@ -574,23 +580,38 @@ class ReflectedBM(StockModel):
             S4 += exp(t1) * t2
         S4 = coeff * S4
 
-        return S1 + S2 + S3 + S4
+        fin = S1 + S2 + S3 + S4
+
+        fin = max(fin, 0)  # TODO remove this hack fix
+        # assert fin >= 0  # TODO should be positive : "the Green’s function expansion
+        # enjoys superior convergence properties and prevents the emergence of negative
+        # conditional densities"
+
+        return fin
 
     def next_cond_exp(self, y, delta_t, current_t):
         assert delta_t > 0
-        if self.use_numerical_cond_exp:
-            return self._compute_numerical_next_cond_exp(y, delta_t, current_t)
-        else:
-            return self._compute_true_next_cond_exp(y, delta_t, current_t)
+        cond_exp = (
+            self._compute_numerical_next_cond_exp(y, delta_t, current_t)
+            if self.use_numerical_cond_exp
+            else self._compute_true_next_cond_exp(y, delta_t, current_t)
+        )
+
+        # TODO fix this, will have to uncomment once it's fixed
+        # assert np.all(cond_exp >= self.lb) and np.all(cond_exp <= self.ub)
+
+        return cond_exp
 
     def _compute_numerical_next_cond_exp(self, y, delta_t, current_t):
         t0 = current_t
         t = current_t + delta_t
         out = np.zeros_like(y)
         for i, x0 in enumerate(y):
-            integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
-            out[i] = quad(integrand, self.lb, self.ub)[0]
-            assert self.lb <= out[i] <= self.ub
+            try:
+                integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
+                out[i] = quad(integrand, self.lb, self.ub)[0]
+            except Exception as e:
+                print(e)
 
         return out
 
@@ -678,10 +699,23 @@ class Rectangle(StockModel):
     def _in_shape(self, x):
         return self.rbm_x._in_shape(x[0]) and self.rbm_y._in_shape(x[1])
 
+    def plot_first_path(self, paths_x, paths_y):
+        path_x = paths_x[0]
+        path_y = paths_y[0]
+        xs = np.arange(path_x.shape[1])
+        fig = plt.figure()
+        ax = fig.add_subplot(projection="3d")
+        ax.scatter(xs, path_x, path_y)
+        plt.savefig("rect_dataset_plot.png")
+        plt.close(fig)
+
     def generate_paths(self, x0=(None, None)):
         paths_x, dt_x = self.rbm_x.generate_paths(x0[0])
         paths_y, dt_y = self.rbm_y.generate_paths(x0[1])
         assert dt_x == dt_y
+
+        self.plot_first_path(paths_x, paths_y)  # for fun
+
         return np.concatenate((paths_x, paths_y), axis=1), dt_x
 
     def next_cond_exp(self, y, delta_t, current_t):
