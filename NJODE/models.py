@@ -544,6 +544,33 @@ class NJODE(torch.nn.Module):
         if self.coord_wise_tau:
             t_size = 2 * input_size
 
+        use_observation_as_input = None
+        if "use_observation_as_input" in options1:
+            use_observation_as_input = options1["use_observation_as_input"]
+        if use_observation_as_input is None:
+            self.use_observation_as_input = lambda x: True
+        elif isinstance(use_observation_as_input, bool):
+            self.use_observation_as_input = lambda x: use_observation_as_input
+        elif isinstance(use_observation_as_input, float):
+            self.use_observation_as_input = (
+                lambda x: np.random.random() < use_observation_as_input
+            )
+        elif isinstance(use_observation_as_input, str):
+            self.use_observation_as_input = eval(use_observation_as_input)
+        val_use_observation_as_input = None
+        if "val_use_observation_as_input" in options1:
+            val_use_observation_as_input = options1["val_use_observation_as_input"]
+        if val_use_observation_as_input is None:
+            self.val_use_observation_as_input = self.use_observation_as_input
+        elif isinstance(val_use_observation_as_input, bool):
+            self.val_use_observation_as_input = lambda x: val_use_observation_as_input
+        elif isinstance(val_use_observation_as_input, float):
+            self.val_use_observation_as_input = (
+                lambda x: np.random.random() < val_use_observation_as_input
+            )
+        elif isinstance(val_use_observation_as_input, str):
+            self.val_use_observation_as_input = eval(val_use_observation_as_input)
+
         self.ode_f = ODEFunc(
             input_size=input_size,
             hidden_size=hidden_size,
