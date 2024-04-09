@@ -5,12 +5,15 @@ code to generate synthetic data from stock-model SDEs
 """
 
 import copy
+import os
 from math import erf, exp, isclose, pi, sqrt
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from fbm import fgn
 from scipy.integrate import quad
+from scipy.special import softmax
 
 
 # ==============================================================================
@@ -149,7 +152,7 @@ class StockModel:
                     delta_t_ = delta_t
                 else:
                     delta_t_ = obs_time - current_time
-                y = self.next_cond_exp(y, delta_t_, current_time)
+                y = self.next_cond_exp(y, delta_t_, current_time, **kwargs)
                 current_time = current_time + delta_t_
 
                 # Storing the conditional expectation
@@ -200,7 +203,7 @@ class StockModel:
                 delta_t_ = delta_t
             else:
                 delta_t_ = T - current_time
-            y = self.next_cond_exp(y, delta_t_, current_time)
+            y = self.next_cond_exp(y, delta_t_, current_time, **kwargs)
             current_time = current_time + delta_t_
 
             # Storing the predictions.
@@ -233,6 +236,7 @@ class StockModel:
         weight=0.5,
         M=None,
         mult=None,
+        path_idx=None,
     ):
         if mult is not None and mult > 1:
             bs, dim = start_X.shape
@@ -255,6 +259,7 @@ class StockModel:
             get_loss=True,
             weight=weight,
             M=M,
+            path_idx=path_idx,
         )
 
         return loss
@@ -302,7 +307,7 @@ class FracBM(StockModel):
         m = np.array(times).reshape((-1, 1)).repeat(len(times), axis=1)
         return self.r_H(m, np.transpose(m))
 
-    def next_cond_exp(self, y, delta_t, current_t):
+    def next_cond_exp(self, y, delta_t, current_t, **kwargs):
         t = current_t + delta_t
         next_y = np.zeros_like(y)
         for ii in range(y.shape[0]):
@@ -451,7 +456,7 @@ class ReflectedBM(StockModel):
     def generate_paths(self, x0=None):
         if x0 is None:
             x0 = (self.lb + self.ub) / 2
-        assert self.lb <= x0 <= self.ub
+        assert self._in_shape(x0)
 
         paths = (
             self._generate_approx_paths(x0)
@@ -589,7 +594,7 @@ class ReflectedBM(StockModel):
 
         return fin
 
-    def next_cond_exp(self, y, delta_t, current_t):
+    def next_cond_exp(self, y, delta_t, current_t, **kwargs):
         assert delta_t > 0
         cond_exp = (
             self._compute_numerical_next_cond_exp(y, delta_t, current_t)
@@ -718,7 +723,7 @@ class Rectangle(StockModel):
 
         return np.concatenate((paths_x, paths_y), axis=1), dt_x
 
-    def next_cond_exp(self, y, delta_t, current_t):
+    def next_cond_exp(self, y, delta_t, current_t, **kwargs):
         assert delta_t > 0
         # y has shape (batch size, 2), since 2 is the process dimension
         # Need to transform it into two variables with shape(batch size, 1)
@@ -733,8 +738,134 @@ class Ball(StockModel):
     pass
 
 
-class VertexApproach(StockModel):
-    pass
+class BMWeights(StockModel):
+    def __init__(
+        self,
+        vertices,
+        should_compute_approx_cond_exp_paths,
+        mu,
+        sigma,
+        dimension,
+        nb_paths,
+        nb_steps,
+        maturity,
+        **kwargs,
+    ):
+        assert dimension == len(vertices[0]) == len(mu) == len(sigma)
+        self.vertices = np.array(vertices)
+        self.mu = mu
+        self.sigma = sigma
+        self.dimension = dimension
+        self.nb_paths = nb_paths
+        self.nb_steps = nb_steps
+        self.maturity = maturity
+        self.dt = maturity / nb_steps
+        self.should_compute_approx_cond_exp_paths = should_compute_approx_cond_exp_paths
+        if self.should_compute_approx_cond_exp_paths:
+            self.motion_paths = None
+
+        self.loss = None
+        self.path_t = None
+        self.path_y = None
+        self.masked = False
+        self.track_obs_cov_mat = False
+
+        from scipy.spatial import ConvexHull
+
+        hull = ConvexHull(vertices, incremental=False)
+        assert len(hull.vertices) == len(
+            vertices
+        ), "Some of the points you gave aren't on the convex hull."
+
+    def weights_to_point(self, w):
+        return np.matmul(w, self.vertices)
+
+    @property
+    def paths_dir(self):
+        # TODO really hacky since assumes just the first BMWeights
+        return Path("..") / "data" / "training_data" / "paths" / "BMWeights-1"
+
+    def compute_cond_exp_approx(self, s, t, path_idx):
+        s_idx = round(s / self.dt, 5)  # avoid floating point errors, e.g. 5.0000001
+        assert float.is_integer(s_idx), "Strategy to get index from times failed :("
+        s_idx = int(s_idx)
+
+        fp = self.paths_dir / "motion_paths.npy"
+        self.motion_paths = np.load(fp)
+
+        W_tilde_s = self.motion_paths[path_idx, :, s_idx]  # what we condition on
+        n = len(self.vertices)
+
+        def sample_cond_exp(incr):
+            # TODO this can be cleaned up a lot, e.g. by bringing the exps inside
+            cexpect = np.zeros(n)
+            for i in range(n):
+                num = np.exp(incr[i]) * np.exp(W_tilde_s[i])
+                denom = 0
+                for j in range(n):
+                    denom += np.exp(incr[j]) * np.exp(W_tilde_s[j])
+                cexpect[i] = num / denom
+
+            return cexpect
+
+        # Now do Monte Carlo
+        N = 10  # TODO pick a smarter value, see message on 09.04
+        weight_cond_exp = np.zeros(n)
+        for _ in range(N):
+            increment_sample = np.random.normal(0, t - s, size=n)
+            weight_cond_exp += (1 / N) * sample_cond_exp(increment_sample)
+
+        # TODO shouldn't the point already come out this way, so I shouldn't have to wrap in another array?
+        #      which function is wrong?
+        res = np.array([self.weights_to_point(weight_cond_exp)])
+
+        return res
+
+    def generate_paths(self, x0=None):
+        sampled_numbers = np.random.standard_normal(
+            (self.nb_paths, len(self.vertices), self.nb_steps)
+        )
+        for i in range(self.dimension):
+            sampled_numbers[:, i, :] = (
+                self.mu[i] + self.sigma[i] * sampled_numbers[:, i, :]
+            )
+        spot_motion_paths = np.cumsum(sampled_numbers * sqrt(self.dt), axis=2)
+        spot_weight_paths = softmax(spot_motion_paths, axis=1)
+
+        spot_paths = np.zeros((self.nb_paths, self.dimension, self.nb_steps + 1))
+        if x0 is None:
+            # Take a point inside the convex hull (average point)
+            x0 = sum(self.vertices) / len(self.vertices)
+        spot_paths[:, :, 0] = x0
+
+        # Convert to points
+        for p in range(self.nb_paths):
+            for s in range(self.nb_steps):
+                w = spot_weight_paths[p, :, s]
+                pt = self.weights_to_point(w)
+                spot_paths[p, :, s + 1] = pt  # add 1 because we prepended x0
+
+        # TODO assert that it's all in the shape?
+
+        if self.should_compute_approx_cond_exp_paths:
+            # TODO x0 might have to be a weight
+            # TODO find a better way to save things
+            p = self.paths_dir
+            p.mkdir(parents=True, exist_ok=True)
+
+            self.motion_paths = spot_motion_paths
+            fp = p / "motion_paths.npy"
+            np.save(fp, self.motion_paths)
+
+        return spot_paths, self.dt
+
+    def next_cond_exp(self, y, delta_t, current_t, **kwargs):
+        if self.should_compute_approx_cond_exp_paths:
+            return self.compute_cond_exp_approx(
+                current_t, delta_t + current_t, kwargs["path_idx"]
+            )
+        else:
+            raise NotImplementedError()
 
 
 # ==============================================================================
@@ -764,7 +895,12 @@ def compute_loss(
 
 # ==============================================================================
 # dict for the supported stock models to get them from their name
-DATASETS = {"FBM": FracBM, "RBM": ReflectedBM, "Rectangle": Rectangle}
+DATASETS = {
+    "FBM": FracBM,
+    "RBM": ReflectedBM,
+    "Rectangle": Rectangle,
+    "BMWeights": BMWeights,
+}
 # ==============================================================================
 
 

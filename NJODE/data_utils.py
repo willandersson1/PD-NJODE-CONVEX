@@ -445,6 +445,7 @@ def CustomCollateFnGen(func_names=None):
             "obs_noise": obs_noise,
             "M": M,
             "start_M": start_M,
+            "path_idx": batch[0]["idx"][0],
         }
         return res
 

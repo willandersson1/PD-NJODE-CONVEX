@@ -4,6 +4,7 @@ author: Florian Krach
 
 import socket
 
+import numpy as np
 import torch
 from configs.config_utils import data_path, get_parameter_array, makedirs
 
@@ -71,6 +72,18 @@ DATA_DICTS = {
         "width": 4,
         "length": 10,
         "base_point": (1, 1),
+    },
+    "Triangle_BM_weights_1_dict": {
+        "model_name": "BMWeights",
+        "should_compute_approx_cond_exp_paths": True,
+        "vertices": [[0, 0], [1, 0], [0, 1]],
+        "mu": [0, 0],
+        "sigma": [1, 1],
+        "nb_paths": 3,
+        "nb_steps": 1000,
+        "maturity": 1.0,
+        "dimension": 2,
+        "obs_perc": 0.1,
     },
 }
 
@@ -291,8 +304,8 @@ plot_paths_Rectangle_dict = {
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
 
-####
-# Rectangle vertex approach
+# ------------------------------------------------------------------------------
+# --- Rectangle vertex approach
 Rectangle_vertex_approach_models_path = (
     "{}saved_models_Rectangle_vertex_approach/".format(data_path)
 )
@@ -344,6 +357,82 @@ plot_paths_Rectangle_vertex_approach_dict = {
 }
 
 
+# ------------------------------------------------------------------------------
+# --- Triangle BM weights vertex approach
+# TODO the naming here is bad, it's actually vertex approach but I don't mention it
+Triangle_BM_weights_models_path = "{}saved_models_Triangle_BM_weights/".format(
+    data_path
+)
+param_list_Triangle_BM_weights = []
+param_dict_Triangle_BM_weights_1 = {
+    "epochs": [500],
+    "batch_size": [200],
+    "save_every": [10],
+    "learning_rate": [0.001],
+    "test_size": [0.2],
+    "seed": [398],
+    "hidden_size": [10],
+    "bias": [True],
+    "dropout_rate": [0.1],
+    "ode_nn": [ode_nn],
+    "readout_nn": [readout_nn],
+    "enc_nn": [enc_nn],
+    "use_rnn": [False],
+    "func_appl_X": [[]],
+    "solver": ["euler"],
+    "weight": [0.5],
+    "weight_decay": [1.0],
+    "data_dict": ["Triangle_BM_weights_1_dict"],
+    "plot": [True],
+    "evaluate": [True],
+    "paths_to_plot": [(0,)],
+    "saved_models_path": [Triangle_BM_weights_models_path],
+    "other_model": ["vertex_approach"],
+}
+param_list_Triangle_BM_weights += get_parameter_array(
+    param_dict=param_dict_Triangle_BM_weights_1
+)
+
+overview_dict_Triangle_BM_weights = dict(
+    ids_from=1,
+    ids_to=len(param_list_Triangle_BM_weights),
+    path=Triangle_BM_weights_models_path,
+    params_extract_desc=(
+        "dataset",
+        "network_size",
+        "nb_layers",
+        "activation_function_1",
+        "use_rnn",
+        "readout_nn",
+        "dropout_rate",
+        "hidden_size",
+        "batch_size",
+        "which_loss",
+        "input_sig",
+        "level",
+    ),
+    val_test_params_extract=(
+        ("max", "epoch", "epoch", "epochs_trained"),
+        (
+            "min",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff_min",
+        ),
+        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
+    ),
+    sortby=["evaluation_mean_diff_min"],
+)
+
+plot_paths_Triangle_BM_weights_dict = {
+    "model_ids": [0],
+    "saved_models_path": Triangle_BM_weights_models_path,
+    "which": "best",
+    "paths_to_plot": [0],
+    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
+}
+
+
 # TODO shouldn't these be / aren't they defined in the respective dataset classes?
 def opt_RBM_proj(x, RBM_param_dict):
     assert RBM_param_dict["other_model"][0] == "optimal_projection"
@@ -384,8 +473,13 @@ def get_ccw_rectangle_vertices(rect_param_dict):
     return torch.tensor([v1, v2, v3, v4]).float()
 
 
+def easy_vertices(dataset_name):
+    return torch.tensor(DATA_DICTS[dataset_name]["vertices"]).float()
+
+
 VERTEX_APPROACH_VERTICES = {
-    "Rectangle_1_dict": get_ccw_rectangle_vertices(param_dict_Rectangle_1)
+    "Rectangle_1_dict": get_ccw_rectangle_vertices(param_dict_Rectangle_1),
+    "Triangle_BM_weights_1_dict": easy_vertices("Triangle_BM_weights_1_dict"),
 }
 
 
@@ -420,6 +514,10 @@ def rect_pen_func(Y, data_dict):
     return torch.norm(Y - projected, 2, dim=1)
 
 
+def zero_pen_func(Y):
+    return torch.norm(Y - Y, 2, dim=1)
+
+
 # TODO actually these should be keyed by the model params, not the dataset name
 CONVEX_PEN_FUNCS = {
     "RBM_1_dict": lambda Y: standard_2_norm_for_lb_ub(
@@ -430,4 +528,5 @@ CONVEX_PEN_FUNCS = {
     "Rectangle_1_dict": lambda Y: rect_pen_func(
         Y, DATA_DICTS[param_dict_Rectangle_1["data_dict"][0]]
     ),
+    "Triangle_BM_weights_1_dict": zero_pen_func,
 }

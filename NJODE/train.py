@@ -841,6 +841,7 @@ def train(
                         true_mask=true_mask,
                         mult=mult,
                         use_stored_cond_exp=use_stored_cond_exp,
+                        path_idx=b["path_idx"],
                     )
                     eval_msd += _eval_msd
 
@@ -976,7 +977,17 @@ def compute_optimal_eval_loss(dl_val, stockmodel, delta_t, T, mult=None):
             M = M.detach().numpy()
         num_obs += 1
         opt_loss += stockmodel.get_optimal_loss(
-            times, time_ptr, X, obs_idx, delta_t, T, start_X, n_obs_ot, M=M, mult=mult
+            times,
+            time_ptr,
+            X,
+            obs_idx,
+            delta_t,
+            T,
+            start_X,
+            n_obs_ot,
+            M=M,
+            mult=mult,
+            path_idx=b["path_idx"],
         )
     return opt_loss / num_obs
 
@@ -1110,6 +1121,7 @@ def plot_one_path_with_pred(
             weight=model.weight,
             M=M,
             store_and_use_stored=reuse_cond_exp,
+            path_idx=batch["path_idx"],
         )
     else:
         opt_loss = 0

@@ -1,6 +1,7 @@
 """
 author: Florian Krach
 """
+
 import synthetic_datasets
 import train
 from configs.config import DATA_DICTS

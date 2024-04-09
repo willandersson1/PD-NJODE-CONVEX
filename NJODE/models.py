@@ -1060,6 +1060,7 @@ class NJODE(torch.nn.Module):
         true_mask=None,
         mult=None,
         use_stored_cond_exp=False,
+        path_idx=None,
     ):
         """
         evaluate the model at its current training state against the true
@@ -1132,6 +1133,7 @@ class NJODE(torch.nn.Module):
                 get_loss=False,
                 M=M,
                 store_and_use_stored=use_stored_cond_exp,
+                path_idx=path_idx,
             )
         else:
             true_t = np.linspace(0, T, true_paths.shape[2])
