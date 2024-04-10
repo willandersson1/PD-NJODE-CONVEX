@@ -15,20 +15,21 @@ import time
 from typing import List
 
 import data_utils
-import matplotlib  # plots
+import matplotlib
 import matplotlib.colors
 import models
-import numpy as np  # large arrays and matrices, functions
-import pandas as pd  # data analysis and manipulation
-import torch  # machine learning
+import numpy as np
+import pandas as pd
+import torch
 import torch.nn as nn
-import tqdm  # process bar for iterations
-from configs import config
+import tqdm
+from configs import config, dataset_configs
 from sklearn.model_selection import train_test_split
 from synthetic_datasets import Rectangle, ReflectedBM
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
+# TODO this is bad
 sys.path.append("../")
 
 # =====================================================================================================================
@@ -70,6 +71,7 @@ USE_GPU = False
 
 # =====================================================================================================================
 # Functions
+# TODO this is bad
 makedirs = config.makedirs
 
 
@@ -547,13 +549,13 @@ def train(
         # TODO this should be keyed by the param dict name, not the dataset
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
-        params_dict["project"] = config.OPTIMAL_PROJECTION_FUNCS[data_dict]
+        params_dict["project"] = dataset_configs.OPTIMAL_PROJECTION_FUNCS[data_dict]
         model = models.NJODE_convex_projection(**params_dict)
         model_name = "convex_projection"
     elif options["other_model"] == "vertex_approach":
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
-        params_dict["vertices"] = config.VERTEX_APPROACH_VERTICES[data_dict]
+        params_dict["vertices"] = dataset_configs.VERTEX_APPROACH_VERTICES[data_dict]
         model = models.NJODE_vertex_approach(**params_dict)
         model_name = "vertex_approach"
     else:

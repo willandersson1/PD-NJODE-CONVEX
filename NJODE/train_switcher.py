@@ -4,7 +4,8 @@ author: Florian Krach
 
 import synthetic_datasets
 import train
-from configs.config import DATA_DICTS
+
+from NJODE.configs.dataset_configs import DATA_DICTS
 
 
 def train_switcher(**params):

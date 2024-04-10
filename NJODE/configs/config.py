@@ -4,15 +4,18 @@ author: Florian Krach
 
 import socket
 
-import numpy as np
-import torch
 from configs.config_utils import data_path, get_parameter_array, makedirs
+from configs.dataset_configs import (
+    DATA_DICTS,
+    rect_pen_func,
+    standard_2_norm_for_lb_ub,
+    zero_pen_func,
+)
 
 if "ada-" not in socket.gethostname():
     SERVER = False
 else:
     SERVER = True
-
 # ==============================================================================
 # Global variables
 makedirs = makedirs
@@ -21,71 +24,6 @@ flagfile = "{}flagfile.tmp".format(data_path)
 
 saved_models_path = "{}saved_models/".format(data_path)
 
-
-# ==============================================================================
-# DATASET DICTS
-# ------------------------------------------------------------------------------
-DATA_DICTS = {
-    "FBM_1_dict": {
-        "model_name": "FBM",
-        "nb_paths": 100,
-        "nb_steps": 100,
-        "S0": 0,
-        "maturity": 1.0,
-        "dimension": 1,
-        "obs_perc": 0.1,
-        "return_vol": False,
-        "hurst": 0.05,
-        "FBMmethod": "daviesharte",
-    },
-    "RBM_1_dict": {
-        "model_name": "RBM",
-        "nb_paths": 10,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 1,
-        "obs_perc": 0.1,
-        "mu": 1.5,
-        "sigma": 1.0,
-        "lb": 2,
-        "ub": 4,
-        "max_z": 5,
-        "max_terms": 3,
-        "use_approx_paths_technique": True,
-        "use_numerical_cond_exp": True,
-    },
-    "Rectangle_1_dict": {
-        "model_name": "Rectangle",
-        "nb_paths": 3,
-        "nb_steps": 1000,
-        "maturity": 5.0,
-        "dimension": 2,
-        "obs_perc": 0.1,
-        "mu_x": 2.0,
-        "sigma_x": 1.0,
-        "mu_y": 5.0,
-        "sigma_y": 1.0,
-        "max_z": 5,
-        "max_terms": 3,
-        "use_approx_paths_technique": True,
-        "use_numerical_cond_exp": True,
-        "width": 4,
-        "length": 10,
-        "base_point": (1, 1),
-    },
-    "Triangle_BM_weights_1_dict": {
-        "model_name": "BMWeights",
-        "should_compute_approx_cond_exp_paths": True,
-        "vertices": [[0, 0], [1, 0], [0, 1]],
-        "mu": [0, 0],
-        "sigma": [1, 1],
-        "nb_paths": 3,
-        "nb_steps": 1000,
-        "maturity": 1.0,
-        "dimension": 2,
-        "obs_perc": 0.1,
-    },
-}
 
 # ==============================================================================
 # TRAINING PARAM DICTS
@@ -365,9 +303,9 @@ Triangle_BM_weights_models_path = "{}saved_models_Triangle_BM_weights/".format(
 )
 param_list_Triangle_BM_weights = []
 param_dict_Triangle_BM_weights_1 = {
-    "epochs": [500],
+    "epochs": [10],
     "batch_size": [200],
-    "save_every": [10],
+    "save_every": [1],
     "learning_rate": [0.001],
     "test_size": [0.2],
     "seed": [398],
@@ -432,98 +370,12 @@ plot_paths_Triangle_BM_weights_dict = {
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
 
-
-# TODO shouldn't these be / aren't they defined in the respective dataset classes?
-def opt_RBM_proj(x, RBM_param_dict):
-    assert RBM_param_dict["other_model"][0] == "optimal_projection"
-
-    return torch.clamp(
-        x,
-        DATA_DICTS[RBM_param_dict["data_dict"][0]]["lb"],
-        DATA_DICTS[RBM_param_dict["data_dict"][0]]["ub"],
-    )
-
-
-def opt_rect_proj(x, rect_param_dict):
-    assert rect_param_dict["other_model"][0] == "optimal_projection"
-
-    data_dict = DATA_DICTS[rect_param_dict["data_dict"][0]]
-    lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
-    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
-    lower = torch.tensor([lb_x, lb_y])
-    upper = torch.tensor([ub_x, ub_y])
-
-    return torch.clamp(x, lower, upper)
-
-
-OPTIMAL_PROJECTION_FUNCS = {
-    "RBM_1_dict": lambda x: opt_RBM_proj(x, param_dict_RBM_1),
-    "Rectangle_1_dict": lambda x: opt_rect_proj(x, param_dict_Rectangle_1),
-}
-
-
-def get_ccw_rectangle_vertices(rect_param_dict):
-    data_dict = DATA_DICTS[rect_param_dict["data_dict"][0]]
-    lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
-    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
-
-    # counterclockwise, starting from bottom-left
-    v1, v2, v3, v4 = (lb_x, lb_y), (ub_x, lb_y), (ub_x, ub_y), (lb_x, ub_y)
-
-    return torch.tensor([v1, v2, v3, v4]).float()
-
-
-def easy_vertices(dataset_name):
-    return torch.tensor(DATA_DICTS[dataset_name]["vertices"]).float()
-
-
-VERTEX_APPROACH_VERTICES = {
-    "Rectangle_1_dict": get_ccw_rectangle_vertices(param_dict_Rectangle_1),
-    "Triangle_BM_weights_1_dict": easy_vertices("Triangle_BM_weights_1_dict"),
-}
-
-
-def standard_2_norm_for_lb_ub(Y, lb, ub):
-    lb_norm = torch.norm(Y - float(lb), 2, dim=1)
-    ub_norm = torch.norm(Y - float(ub), 2, dim=1)
-    closest = torch.min(lb_norm, ub_norm)
-    mask = torch.ones_like(closest)
-    for i in range(len(Y)):
-        if lb <= Y[i] <= ub:
-            mask[i] = 0
-
-    return mask * closest
-
-
-def rect_pen_func(Y, data_dict):
-    lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
-    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
-
-    # Separable so just project each coordinate independently
-    projected = Y.clone().detach()
-    for i in range(len(Y)):
-        if not (lb_x <= Y[i][0] <= ub_x):
-            projected[i][0] = torch.min(
-                torch.norm(Y[i][0] - lb_x, 1), torch.norm(Y[i][0] - ub_x, 1)
-            )
-        if not (lb_y <= Y[i][1] <= ub_y):
-            projected[i][1] = torch.min(
-                torch.norm(Y[i][1] - lb_y, 1), torch.norm(Y[i][1] - ub_y, 1)
-            )
-
-    return torch.norm(Y - projected, 2, dim=1)
-
-
-def zero_pen_func(Y):
-    return torch.norm(Y - Y, 2, dim=1)
-
-
 # TODO actually these should be keyed by the model params, not the dataset name
 CONVEX_PEN_FUNCS = {
     "RBM_1_dict": lambda Y: standard_2_norm_for_lb_ub(
         Y,
-        DATA_DICTS[param_dict_RBM_1["data_dict"][0]]["lb"],
-        DATA_DICTS[param_dict_RBM_1["data_dict"][0]]["ub"],
+        DATA_DICTS["RBM_1_dict"]["lb"],
+        DATA_DICTS["RBM_1_dict"]["ub"],
     ),
     "Rectangle_1_dict": lambda Y: rect_pen_func(
         Y, DATA_DICTS[param_dict_Rectangle_1["data_dict"][0]]

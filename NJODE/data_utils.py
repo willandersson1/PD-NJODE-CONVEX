@@ -14,7 +14,7 @@ import synthetic_datasets
 import torch
 from absl import app, flags
 from configs import config, config_utils
-from configs.config import DATA_DICTS
+from configs.dataset_configs import DATA_DICTS
 from torch.utils.data import Dataset
 
 FLAGS = flags.FLAGS

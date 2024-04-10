@@ -152,6 +152,7 @@ class StockModel:
                     delta_t_ = delta_t
                 else:
                     delta_t_ = obs_time - current_time
+                kwargs["last_obs_time"] = 0 if i == 0 else times[i - 1]
                 y = self.next_cond_exp(y, delta_t_, current_time, **kwargs)
                 current_time = current_time + delta_t_
 
@@ -203,6 +204,7 @@ class StockModel:
                 delta_t_ = delta_t
             else:
                 delta_t_ = T - current_time
+            kwargs["last_obs_time"] = times[-1]
             y = self.next_cond_exp(y, delta_t_, current_time, **kwargs)
             current_time = current_time + delta_t_
 
@@ -612,11 +614,9 @@ class ReflectedBM(StockModel):
         t = current_t + delta_t
         out = np.zeros_like(y)
         for i, x0 in enumerate(y):
-            try:
-                integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
-                out[i] = quad(integrand, self.lb, self.ub)[0]
-            except Exception as e:
-                print(e)
+            # TODO silence the IntegrationWarning s
+            integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
+            out[i] = quad(integrand, self.lb, self.ub)[0]
 
         return out
 
@@ -793,23 +793,26 @@ class BMWeights(StockModel):
         fp = self.paths_dir / "motion_paths.npy"
         self.motion_paths = np.load(fp)
 
+        # TODO remove this hack. It's because x0 is not really part of the motion path yet
+        if s_idx == self.motion_paths.shape[2]:
+            s_idx = self.motion_paths.shape[2] - 1
+
         W_tilde_s = self.motion_paths[path_idx, :, s_idx]  # what we condition on
         n = len(self.vertices)
 
         def sample_cond_exp(incr):
-            # TODO this can be cleaned up a lot, e.g. by bringing the exps inside
             cexpect = np.zeros(n)
             for i in range(n):
-                num = np.exp(incr[i]) * np.exp(W_tilde_s[i])
+                num = np.exp(incr[i] + W_tilde_s[i])
                 denom = 0
                 for j in range(n):
-                    denom += np.exp(incr[j]) * np.exp(W_tilde_s[j])
+                    denom += np.exp(incr[j] + W_tilde_s[j])
                 cexpect[i] = num / denom
 
             return cexpect
 
         # Now do Monte Carlo
-        N = 10  # TODO pick a smarter value, see message on 09.04
+        N = 100  # TODO pick a smarter value, see message on 09.04
         weight_cond_exp = np.zeros(n)
         for _ in range(N):
             increment_sample = np.random.normal(0, t - s, size=n)
@@ -861,8 +864,9 @@ class BMWeights(StockModel):
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
         if self.should_compute_approx_cond_exp_paths:
+            last_obs_time = kwargs["last_obs_time"]
             return self.compute_cond_exp_approx(
-                current_t, delta_t + current_t, kwargs["path_idx"]
+                last_obs_time, delta_t + current_t, kwargs["path_idx"]
             )
         else:
             raise NotImplementedError()
