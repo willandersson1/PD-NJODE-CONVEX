@@ -32,6 +32,8 @@ ode_nn = ((50, "tanh"), (50, "tanh"))
 readout_nn = ((50, "tanh"), (50, "tanh"))
 enc_nn = ((50, "tanh"), (50, "tanh"))
 
+# TODO do asserts that the data dict is in DATA_DICTS? or I guess will be caught later
+
 # ------------------------------------------------------------------------------
 # --- Fractional Brownian Motion
 FBM_models_path = "{}saved_models_FBM/".format(data_path)
@@ -369,6 +371,77 @@ plot_paths_Triangle_BM_weights_dict = {
     "paths_to_plot": [0],
     "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
 }
+
+
+###################
+# Ball2D with NJODE
+Ball2D_BM_models_path = "{}saved_models_Ball2D_BM/".format(data_path)
+param_list_Ball2D_BM = []
+param_dict_Ball2D_BM_1 = {
+    "epochs": [3],
+    "batch_size": [200],
+    "save_every": [1],
+    "learning_rate": [0.001],
+    "test_size": [0.2],
+    "seed": [398],
+    "hidden_size": [10, 50],
+    "bias": [True],
+    "dropout_rate": [0.1],
+    "ode_nn": [ode_nn],
+    "readout_nn": [readout_nn],
+    "enc_nn": [enc_nn],
+    "use_rnn": [False],
+    "func_appl_X": [[]],
+    "solver": ["euler"],
+    "weight": [0.5],
+    "weight_decay": [1.0],
+    "data_dict": ["Ball2D_BM_1_dict"],
+    "plot": [True],
+    "evaluate": [True],
+    "paths_to_plot": [(0,)],
+    "saved_models_path": [Ball2D_BM_models_path],
+}
+param_list_Ball2D_BM += get_parameter_array(param_dict=param_dict_Ball2D_BM_1)
+
+overview_dict_Ball2D_BM = dict(
+    ids_from=1,
+    ids_to=len(param_list_Ball2D_BM),
+    path=Ball2D_BM_models_path,
+    params_extract_desc=(
+        "dataset",
+        "network_size",
+        "nb_layers",
+        "activation_function_1",
+        "use_rnn",
+        "readout_nn",
+        "dropout_rate",
+        "hidden_size",
+        "batch_size",
+        "which_loss",
+        "input_sig",
+        "level",
+    ),
+    val_test_params_extract=(
+        ("max", "epoch", "epoch", "epochs_trained"),
+        (
+            "min",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff",
+            "evaluation_mean_diff_min",
+        ),
+        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
+    ),
+    sortby=["evaluation_mean_diff_min"],
+)
+
+plot_paths_Ball2D_BM_dict = {
+    "model_ids": [1],
+    "saved_models_path": Ball2D_BM_models_path,
+    "which": "best",
+    "paths_to_plot": [0],
+    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
+}
+
 
 # TODO actually these should be keyed by the model params, not the dataset name
 CONVEX_PEN_FUNCS = {

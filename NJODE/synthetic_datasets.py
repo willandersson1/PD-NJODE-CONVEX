@@ -5,7 +5,6 @@ code to generate synthetic data from stock-model SDEs
 """
 
 import copy
-import os
 from math import erf, exp, isclose, pi, sqrt
 from pathlib import Path
 
@@ -16,7 +15,22 @@ from scipy.integrate import quad
 from scipy.special import softmax
 
 
-# ==============================================================================
+def generate_BM(nb_paths, dim, nb_steps, dt, mu, sigma):
+    # TODO probably move this to another place. It can't do in data_utils
+    assert dim == len(mu) == len(sigma)
+    assert all(x >= 0 for x in mu) and all(x >= 0 for x in sigma)
+    assert dt > 0
+
+    sampled_numbers = np.random.standard_normal((nb_paths, dim, nb_steps))
+
+    for i in range(dim):
+        sampled_numbers[:, i, :] = mu[i] + sigma[i] * sampled_numbers[:, i, :]
+
+    motion_paths = np.cumsum(sampled_numbers * sqrt(dt), axis=2)
+
+    return motion_paths
+
+
 # CLASSES
 class StockModel:
     """
@@ -734,8 +748,82 @@ class Rectangle(StockModel):
         return np.concatenate((cond_exp_x, cond_exp_y), axis=1)
 
 
-class Ball(StockModel):
-    pass
+class Ball2D_BM(StockModel):
+    def __init__(
+        self,
+        max_radius,
+        radius_mu,
+        radius_sigma,
+        angle_mu,
+        angle_sigma,
+        nb_paths,
+        nb_steps,
+        maturity,
+        dimension,
+        **kwargs,
+    ):
+        assert dimension == 2
+        assert len(angle_mu) == len(angle_sigma) == dimension - 1
+        self.radius_mu = radius_mu
+        self.radius_sigma = radius_sigma
+        self.angle_mu = angle_mu
+        self.angle_sigma = angle_sigma
+        self.max_radius = max_radius
+        self.dimension = dimension
+        self.nb_paths = nb_paths
+        self.nb_steps = nb_steps
+        self.maturity = maturity
+        self.dt = maturity / nb_steps
+
+        self.loss = None
+        self.path_t = None
+        self.path_y = None
+        self.masked = False
+        self.track_obs_cov_mat = False
+
+    def radius_angle_to_point(self, radius, angle):
+        pass
+
+    def generate_paths(self, x0=None):
+        # TODO x0 should probably be a weight
+        if x0 is None:
+            x0 = [0, 0]
+        else:
+            assert 0 <= x0[0] <= self.max_radius
+            assert 0 <= x0[1] <= 2 * pi
+
+        radius_raw_paths = generate_BM(
+            self.nb_paths,
+            1,
+            self.nb_steps,
+            self.dt,
+            [self.radius_mu],
+            [self.radius_sigma],
+        )
+
+        radius_paths = self.max_radius * np.tanh(np.abs(radius_raw_paths))
+
+        angle_raw_paths = generate_BM(
+            self.nb_paths,
+            self.dimension - 1,
+            self.nb_steps,
+            self.dt,
+            self.angle_mu,
+            self.angle_sigma,
+        )
+
+        angle_paths = np.mod(angle_raw_paths, 2 * pi)
+
+        res = np.zeros(shape=(self.nb_paths, self.dimension, self.nb_steps + 1))
+        res[:, :, 0] = x0
+        res[:, 0, 1:] = radius_paths[:, 0, :]
+        res[:, 1:, 1:] = angle_paths
+
+        return res, self.dt
+
+    def next_cond_exp(self, y, delta_t, current_t, **kwargs):
+        # TODO
+        return y
 
 
 class BMWeights(StockModel):
@@ -751,7 +839,8 @@ class BMWeights(StockModel):
         maturity,
         **kwargs,
     ):
-        assert dimension == len(vertices[0]) == len(mu) == len(sigma)
+        assert len(vertices) == len(mu) == len(sigma)
+        assert all(len(v) == dimension for v in vertices)
         self.vertices = np.array(vertices)
         self.mu = mu
         self.sigma = sigma
@@ -825,14 +914,14 @@ class BMWeights(StockModel):
         return res
 
     def generate_paths(self, x0=None):
-        sampled_numbers = np.random.standard_normal(
-            (self.nb_paths, len(self.vertices), self.nb_steps)
+        spot_motion_paths = generate_BM(
+            self.nb_paths,
+            len(self.vertices),
+            self.nb_steps,
+            self.dt,
+            self.mu,
+            self.sigma,
         )
-        for i in range(self.dimension):
-            sampled_numbers[:, i, :] = (
-                self.mu[i] + self.sigma[i] * sampled_numbers[:, i, :]
-            )
-        spot_motion_paths = np.cumsum(sampled_numbers * sqrt(self.dt), axis=2)
         spot_weight_paths = softmax(spot_motion_paths, axis=1)
 
         spot_paths = np.zeros((self.nb_paths, self.dimension, self.nb_steps + 1))
@@ -904,6 +993,7 @@ DATASETS = {
     "RBM": ReflectedBM,
     "Rectangle": Rectangle,
     "BMWeights": BMWeights,
+    "Ball2D_BM": Ball2D_BM,
 }
 # ==============================================================================
 
