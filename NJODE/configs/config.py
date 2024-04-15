@@ -378,7 +378,7 @@ plot_paths_Triangle_BM_weights_dict = {
 Ball2D_BM_models_path = "{}saved_models_Ball2D_BM/".format(data_path)
 param_list_Ball2D_BM = []
 param_dict_Ball2D_BM_1 = {
-    "epochs": [3],
+    "epochs": [10],
     "batch_size": [200],
     "save_every": [1],
     "learning_rate": [0.001],

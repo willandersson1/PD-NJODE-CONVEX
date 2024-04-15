@@ -5,6 +5,7 @@ code to generate synthetic data from stock-model SDEs
 """
 
 import copy
+import math
 from math import erf, exp, isclose, pi, sqrt
 from pathlib import Path
 
@@ -775,22 +776,21 @@ class Ball2D_BM(StockModel):
         self.maturity = maturity
         self.dt = maturity / nb_steps
 
+        # Scaling factors
+        self.alpha_r = self.max_radius
+        self.alpha_theta = pi
+
         self.loss = None
         self.path_t = None
         self.path_y = None
         self.masked = False
         self.track_obs_cov_mat = False
 
-    def radius_angle_to_point(self, radius, angle):
-        pass
-
     def generate_paths(self, x0=None):
-        # TODO x0 should probably be a weight
         if x0 is None:
             x0 = [0, 0]
         else:
-            assert 0 <= x0[0] <= self.max_radius
-            assert 0 <= x0[1] <= 2 * pi
+            assert x0[0] ** 2 + x0[1] ** 2 <= self.max_radius**2
 
         radius_raw_paths = generate_BM(
             self.nb_paths,
@@ -801,7 +801,7 @@ class Ball2D_BM(StockModel):
             [self.radius_sigma],
         )
 
-        radius_paths = self.max_radius * np.tanh(np.abs(radius_raw_paths))
+        radius_paths = self.max_radius * np.abs(np.tanh(radius_raw_paths))
 
         angle_raw_paths = generate_BM(
             self.nb_paths,
@@ -812,18 +812,57 @@ class Ball2D_BM(StockModel):
             self.angle_sigma,
         )
 
-        angle_paths = np.mod(angle_raw_paths, 2 * pi)
+        x_coords = radius_paths * np.cos(self.alpha_theta * angle_raw_paths)
+        y_coords = radius_paths * np.sin(self.alpha_theta * angle_raw_paths)
 
         res = np.zeros(shape=(self.nb_paths, self.dimension, self.nb_steps + 1))
         res[:, :, 0] = x0
-        res[:, 0, 1:] = radius_paths[:, 0, :]
-        res[:, 1:, 1:] = angle_paths
+        res[:, 0, 1:] = x_coords[:, 0, :]
+        res[:, 1, 1:] = y_coords[:, 0, :]
+
+        # Make sure all points are inside the ball
+        for p in range(self.nb_paths):
+            for s in range(self.nb_steps + 1):
+                x, y = res[p, :, s]
+                assert x**2 + y**2 <= self.max_radius**2
 
         return res, self.dt
 
+    def monte_carlo_radius(self, r_s, interval):
+        def get_instance(sample):
+            return np.abs(np.tanh(sample + np.arctanh(r_s)))
+
+        # TODO could find a smarter value
+        N = 100
+        res = 0
+        for _ in range(N):
+            sample = np.random.normal(0, sqrt(interval))
+            res += (1 / N) * get_instance(sample)
+
+        return res
+
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
-        # TODO
-        return y
+        # Radius conditional expectation
+        # TODO am I doing this right with this double layering
+        # of y and res??? did I do this in other ones? ir is dim wrong?
+        s, t = current_t, current_t + delta_t
+        r_s = np.linalg.norm(y, 2) / self.alpha_r
+        if r_s == 0:
+            cos_s, sin_s = 0, 0
+        else:
+            cos_s = y[0][0] / (self.alpha_r * r_s)
+            sin_s = y[0][1] / (self.alpha_r * r_s)
+
+        r_t = self.monte_carlo_radius(r_s, t - s)
+
+        pow = (self.alpha_theta) * (t - s)
+        temp = (1 / sqrt(math.e)) ** pow
+        cos_t = temp * cos_s
+        sin_t = temp * sin_s
+
+        res = self.alpha_r * r_t * np.array([cos_t, sin_t])
+
+        return np.array([res])
 
 
 class BMWeights(StockModel):
@@ -904,7 +943,7 @@ class BMWeights(StockModel):
         N = 100  # TODO pick a smarter value, see message on 09.04
         weight_cond_exp = np.zeros(n)
         for _ in range(N):
-            increment_sample = np.random.normal(0, t - s, size=n)
+            increment_sample = np.random.normal(0, sqrt(t - s), size=n)
             weight_cond_exp += (1 / N) * sample_cond_exp(increment_sample)
 
         # TODO shouldn't the point already come out this way, so I shouldn't have to wrap in another array?

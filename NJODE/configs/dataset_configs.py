@@ -62,7 +62,7 @@ DATA_DICTS = {
     },
     "Ball2D_BM_1_dict": {
         "model_name": "Ball2D_BM",
-        "max_radius": 1,
+        "max_radius": 10,
         "radius_mu": 0,
         "radius_sigma": 1,
         "angle_mu": [0],
@@ -71,7 +71,7 @@ DATA_DICTS = {
         "nb_steps": 1000,
         "maturity": 1.0,
         "dimension": 2,
-        "obs_perc": 0.1,
+        "obs_perc": 0.05,
     },
 }
 
