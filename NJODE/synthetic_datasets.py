@@ -6,7 +6,8 @@ code to generate synthetic data from stock-model SDEs
 
 import copy
 import math
-from math import erf, exp, isclose, pi, sqrt
+import warnings
+from math import exp, isclose, pi, sqrt
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,7 @@ import numpy as np
 from fbm import fgn
 from scipy.integrate import quad
 from scipy.special import softmax
+from scipy.stats import norm
 
 
 def generate_BM(nb_paths, dim, nb_steps, dt, mu, sigma):
@@ -399,7 +401,6 @@ class ReflectedBM(StockModel):
         self.path_y = None
         self.use_approx_paths_technique = use_approx_paths_technique
         self.use_numerical_cond_exp = use_numerical_cond_exp
-        self.norm_cdf = lambda x: 0.5 * (1 + erf((x - self.mu) / self.sigma * sqrt(2)))
         self.masked = True
         self.track_obs_cov_mat = False
 
@@ -517,7 +518,7 @@ class ReflectedBM(StockModel):
         ninf = -self.max_terms
         c = self.lb
         d = self.ub
-        phi = self.norm_cdf
+        phi = norm.cdf
 
         # TODO hack fix when e.g. at 0.999999994 and c is 1
         #      should put this into a separate function
@@ -604,11 +605,6 @@ class ReflectedBM(StockModel):
 
         fin = S1 + S2 + S3 + S4
 
-        fin = max(fin, 0)  # TODO remove this hack fix
-        # assert fin >= 0  # TODO should be positive : "the Green’s function expansion
-        # enjoys superior convergence properties and prevents the emergence of negative
-        # conditional densities"
-
         return fin
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
@@ -619,8 +615,7 @@ class ReflectedBM(StockModel):
             else self._compute_true_next_cond_exp(y, delta_t, current_t)
         )
 
-        # TODO fix this, will have to uncomment once it's fixed
-        # assert np.all(cond_exp >= self.lb) and np.all(cond_exp <= self.ub)
+        assert np.all(cond_exp >= self.lb) and np.all(cond_exp <= self.ub)
 
         return cond_exp
 
@@ -629,9 +624,17 @@ class ReflectedBM(StockModel):
         t = current_t + delta_t
         out = np.zeros_like(y)
         for i, x0 in enumerate(y):
-            # TODO silence the IntegrationWarning s
+            x0 = self.lb + 0.00001
+            t = t0 + 0.5
             integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
-            out[i] = quad(integrand, self.lb, self.ub)[0]
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", r"The occurrence of roundoff error is detected*"
+                )
+                warnings.filterwarnings(
+                    "ignore", r"The maximum number of subdivisions*"
+                )
+                out[i] = quad(integrand, self.lb, self.ub)[0]
 
         return out
 
