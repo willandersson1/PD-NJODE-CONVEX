@@ -32,8 +32,6 @@ ode_nn = ((50, "tanh"), (50, "tanh"))
 readout_nn = ((50, "tanh"), (50, "tanh"))
 enc_nn = ((50, "tanh"), (50, "tanh"))
 
-# TODO do asserts that the data dict is in DATA_DICTS? or I guess will be caught later
-
 # ------------------------------------------------------------------------------
 # --- Fractional Brownian Motion
 FBM_models_path = "{}saved_models_FBM/".format(data_path)
@@ -128,9 +126,10 @@ param_dict_RBM_1 = {
     "data_dict": ["RBM_1_dict"],
     "plot": [True],
     "evaluate": [True],
-    "paths_to_plot": [(0,)],
+    "paths_to_plot": [(0, 1)],
     "saved_models_path": [RBM_models_path],
     "other_model": ["optimal_projection"],
+    "lmbda": [1],
 }
 param_list_RBM += get_parameter_array(param_dict=param_dict_RBM_1)
 
@@ -443,15 +442,12 @@ plot_paths_Ball2D_BM_dict = {
 }
 
 
-# TODO actually these should be keyed by the model params, not the dataset name
 CONVEX_PEN_FUNCS = {
     "RBM_1_dict": lambda Y: standard_2_norm_for_lb_ub(
         Y,
         DATA_DICTS["RBM_1_dict"]["lb"],
         DATA_DICTS["RBM_1_dict"]["ub"],
     ),
-    "Rectangle_1_dict": lambda Y: rect_pen_func(
-        Y, DATA_DICTS[param_dict_Rectangle_1["data_dict"][0]]
-    ),
+    "Rectangle_1_dict": lambda Y: rect_pen_func(Y, DATA_DICTS["RBM_1_dict"]),
     "Triangle_BM_weights_1_dict": zero_pen_func,
 }

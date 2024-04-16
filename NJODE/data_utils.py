@@ -10,11 +10,11 @@ import os
 
 import numpy as np
 import pandas as pd
-import synthetic_datasets
 import torch
 from absl import app, flags
 from configs import config, config_utils
 from configs.dataset_configs import DATA_DICTS
+from synthetic_datasets import DATASETS as _STOCK_MODELS
 from torch.utils.data import Dataset
 
 FLAGS = flags.FLAGS
@@ -22,7 +22,7 @@ flags.DEFINE_string("dataset_params", None, "name of the dict with data hyper-pa
 flags.DEFINE_string("dataset_name", None, "name of the dataset to generate")
 flags.DEFINE_integer("seed", 0, "seed for making dataset generation reproducible")
 
-_STOCK_MODELS = synthetic_datasets.DATASETS
+# _STOCK_MODELS = DATASETS
 data_path = config.data_path
 training_data_path = config_utils.training_data_path
 

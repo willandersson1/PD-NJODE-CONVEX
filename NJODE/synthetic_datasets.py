@@ -15,29 +15,7 @@ from fbm import fgn
 from scipy.integrate import quad
 from scipy.special import softmax
 from scipy.stats import norm
-
-
-def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma):
-    # TODO probably move this and to another place. It can't do in data_utils
-    assert dim == len(mu) == len(sigma)
-    assert all(x >= 0 for x in mu) and all(x > 0 for x in sigma)
-    assert dt > 0
-
-    sampled_numbers = np.random.standard_normal((nb_paths, dim, nb_steps))
-
-    for i in range(dim):
-        sampled_numbers[:, i, :] = mu[i] + sigma[i] * sampled_numbers[:, i, :]
-
-    motion_paths = np.cumsum(sampled_numbers * sqrt(dt), axis=2)
-
-    return motion_paths
-
-
-def generate_BM(nb_paths, dim, nb_steps, dt):
-    # TODO probably move this and to another place. It can't do in data_utils
-    z = [0 for _ in range(dim)]
-    o = [1 for _ in range(dim)]
-    return generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, z, o)
+from tqdm import tqdm
 
 
 # CLASSES
@@ -163,7 +141,7 @@ class StockModel:
                 path_t = [0.0]
                 path_y = [y]
 
-        for i, obs_time in enumerate(times):
+        for i, obs_time in tqdm(enumerate(times), total=len(times)):
             # the following is needed for the combined stock model datasets
             if obs_time > T + 1e-10 * delta_t:
                 break
@@ -387,9 +365,8 @@ class ReflectedBM(StockModel):
         use_numerical_cond_exp,
         **kwargs,
     ):
+        assert sigma > 0
         assert lb < ub
-        assert lb + mu <= ub
-        assert ub - mu >= lb  # TODO I think these are needed
 
         self.mu = mu
         self.sigma = sigma
@@ -417,8 +394,7 @@ class ReflectedBM(StockModel):
     def _in_shape(self, x):
         return self.lb < x < self.ub
 
-    def _proj(self, x):
-        # TODO could probably pick z or k smartly. For sure should expand inside-out for k though
+    def _proj_approximately(self, x):
         # NOTE this isn't really a projection. We're trying to figure out how often it bounces
         if self._in_shape(x):
             return x
@@ -446,37 +422,18 @@ class ReflectedBM(StockModel):
         spot_paths[:, :, 0] = x0
         for i in range(self.nb_paths):
             for j in range(self.dimensions):
-                # TODO change this to use the generate bm function. scale is just dt here
-                scale = 1.0 * self.maturity / (self.nb_steps + 1)
-                raw_paths = (
-                    scale
-                    * np.cumsum(np.random.normal(self.mu, self.sigma, self.nb_steps))
-                    + spot_paths[i, j, 0]
+                raw_paths = generate_BM_drift_diffusion(
+                    1, 1, self.nb_steps, self.dt, [self.mu], [self.sigma]
                 )
-                projected_paths = np.array([self._proj(x) for x in raw_paths])
+                raw_paths += x0 * sqrt(self.dt)  # acount for the x0
+                projected_paths = np.array(
+                    [self._proj_approximately(x) for x in raw_paths[0, 0]]
+                )
                 spot_paths[i, j, 1:] = projected_paths
 
         return spot_paths
 
     def _generate_true_paths(self, x0):
-        # TODO will have to use rejection sampling or some MCMC method
-        # https://jaketae.github.io/study/rejection-sampling/
-        # TODO can write about this: trying to find a function that covers it, for rejection sampling, but there are asymptotes so not possible
-        # from scipy.stats import norm
-        # opts = (0.5, 0.35, 10, 1.0, 2.0)
-        # mu, sigma, max_terms, lb, ub = opts
-        # asdf = c(*opts)
-        # x0 = (lb + ub)/2
-        # t = 0.5
-        # t0 = 0
-        # # asdf.reflected_bm_pdf((lb + ub)/2, t, x0, t0)
-        # p = lambda x: asdf.reflected_bm_pdf(x, t, x0, t0)
-        # q = lambda x: norm.pdf(x, mu*(t - t0) + x0, sigma*sqrt(t - t0))
-        # x = np.linspace(lb, ub, 100)
-        # fig, ax = plt.subplots()
-        # ax.plot(x, [p(t) for t in x], color='b')
-        # ax.plot(x, [q(t) for t in x], color='r')
-        # ax.plot(x, [2*q(t) for t in x], color='g') # TODO this works pretty well, but if I increase sigma it eventually gets worse. And 1/sigma, 1/(sigma**2) also wrong. Also for very small values of mu. Maybe can argue like that std dev larger than (ub - lb) doesn't make sense?
         raise NotImplementedError()
 
     def generate_paths(self, x0=None):
@@ -494,32 +451,16 @@ class ReflectedBM(StockModel):
 
         return paths, self.dt
 
+    def _clip_if_out_but_close(self, x, boundary, is_lower_boundary):
+        out_test = x >= boundary if is_lower_boundary else x <= boundary
+        if not out_test and isclose(x, boundary, rel_tol=10e-4):
+            return boundary
+        else:
+            return x
+
     def reflected_bm_pdf(self, x, t, x0, t0):
         # Follow eqn 11 of
         # https://link.springer.com/content/pdf/10.1023/B:CSEM.0000049491.13935.af.pdf
-        # TODO can write about this in paper
-        # NOTE: to avoid overflows, need to bring the exps into one, within each sum.
-        # Additionally, sometimes need to do check to see if multiply by 0 (short cut),
-        # otherwise evaluating a huge number
-        # ########
-        # n = pinf
-        # t1 = (2*mu*(n*d - (n + 1)*c + x)) / sigma**2
-        # t2 = (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
-        # print(t1, t2)
-        # print(t2 * t1)
-        # S3 = -coeff * sum(
-        #     exp( (2*mu*(n*d - (n + 1)*c + x)) / sigma**2) \
-        #     * (1 - phi((mu*(t - t0) + 2*n*d - 2*(n + 1)*c + x0 + x) / (sigma*sqrt(t - t0))))
-        #     for n in range(0, pinf)
-        # )
-
-        # opts = (0.2, 0.02, 10, 4, 10)
-
-        # x0 = (lb + ub)/2
-        # t = 1
-        # t0 = 0
-        # asdf.reflected_bm_pdf((lb + ub)/2, t, x0, t0)
-
         mu = self.mu
         sigma = self.sigma
         pinf = self.max_terms
@@ -528,34 +469,12 @@ class ReflectedBM(StockModel):
         d = self.ub
         phi = norm.cdf
 
-        # TODO hack fix when e.g. at 0.999999994 and c is 1
-        #      should put this into a separate function
-        # TODO this is probably really slow
-        rel_tol = 10e-4
-        if not (c <= x) and isclose(x, c, rel_tol=rel_tol):
-            x = c
-        elif not (x <= d) and isclose(x, d, rel_tol=rel_tol):
-            x = d
+        x = self._clip_if_out_but_close(x, c, True)
+        x = self._clip_if_out_but_close(x, d, False)
 
-        if not (c <= x0) and isclose(x0, c, rel_tol=rel_tol):
-            x0 = c
-        elif not (x0 <= d) and isclose(x0, d, rel_tol=rel_tol):
-            x0 = d
-
-        # TODO consider what the pdf should be when these are not true.
-        # If x (what we're asking for) is outside, then it's not possible.
-        # If the previous point is outside? then the prob is undefined.
-        # Just round it to closest of c or d and return that density?
+        # Zero mass outside of the boundaries
         if not (c <= x <= d):
             return 0.0
-
-        if not (c <= x0 <= d):  # TODO def rethink this
-            x0 = c if abs(x0 - c) < abs(x0 - d) else d
-
-        # TODO rem this for performance
-        # assert c <= x <= d
-        # assert c <= x0 <= d
-        # assert t > t0
 
         coeff = 1.0 / (sigma * sqrt(2 * pi * (t - t0)))
         S1 = coeff * sum(
@@ -633,16 +552,16 @@ class ReflectedBM(StockModel):
         t = current_t + delta_t
         out = np.zeros_like(y)
         for i, x0 in enumerate(y):
+            x0 = self._clip_if_out_but_close(x0, self.lb, True)
+            x0 = self._clip_if_out_but_close(x0, self.ub, False)
+
             integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
-            # Increase error tolerance for speed, default ~1e-8
-            # TODO rem this stuff, prints etc
-            # TODO maybe tolerance of 1e-4?
-            integral, _, info = quad(
+            # Increase error tolerance for speed, default was ~1e-8
+            # NOTE can be very slow, even with this
+            integral, _, _ = quad(
                 integrand, self.lb, self.ub, epsabs=1e-3, full_output=True
             )
             out[i] = integral
-            n_subintervals = info["last"]
-            print(round(t0, 4), n_subintervals)
 
         return out
 
@@ -670,6 +589,7 @@ class Rectangle(StockModel):
         use_numerical_cond_exp,
         **kwargs,
     ):
+        # TODO doubt all of these are used, same for other datasets
         assert width > 0 and length > 0
 
         self.width = width
@@ -684,7 +604,7 @@ class Rectangle(StockModel):
         self.max_z = max_z
         self.nb_paths = nb_paths
         self.dimension = dimension
-        self.dimensions = 1  # TODO not sure what this is for/if useful, same for RBM
+        self.dimensions = 1
         self.nb_steps = nb_steps
         self.maturity = maturity
         self.dt = maturity / nb_steps
@@ -834,7 +754,6 @@ class Ball2D_BM(StockModel):
         def get_instance(sample):
             return np.abs(np.tanh(sample + np.arctanh(r_s)))
 
-        # TODO could find a smarter value
         N = 100
         res = 0
         for _ in range(N):
@@ -938,14 +857,13 @@ class BMWeights(StockModel):
             return cexpect
 
         # Now do Monte Carlo
-        N = 100  # TODO pick a smarter value, see message on 09.04
+        N = 100
         weight_cond_exp = np.zeros(n)
         for _ in range(N):
             increment_sample = np.random.normal(0, sqrt(t - s), size=n)
             weight_cond_exp += (1 / N) * sample_cond_exp(increment_sample)
 
-        # TODO shouldn't the point already come out this way, so I shouldn't have to wrap in another array?
-        #      which function is wrong?
+        # TODO need to redo this since should be like batch size
         res = np.array([self.weights_to_point(weight_cond_exp)])
 
         return res
@@ -972,8 +890,6 @@ class BMWeights(StockModel):
                 pt = self.weights_to_point(w)
                 spot_paths[p, :, s + 1] = pt  # add 1 because we prepended x0
 
-        # TODO assert that it's all in the shape?
-
         if self.should_compute_approx_cond_exp_paths:
             # TODO x0 might have to be a weight
             # TODO find a better way to save things
@@ -987,7 +903,6 @@ class BMWeights(StockModel):
         return spot_paths, self.dt
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
-        # TODO is this not broken like Ball2D and RBM are?
         if self.should_compute_approx_cond_exp_paths:
             last_obs_time = kwargs["last_obs_time"]
             return self.compute_cond_exp_approx(
@@ -995,6 +910,27 @@ class BMWeights(StockModel):
             )
         else:
             raise NotImplementedError()
+
+
+def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma):
+    assert dim == len(mu) == len(sigma)
+    assert all(x >= 0 for x in mu) and all(x > 0 for x in sigma)
+    assert dt > 0
+
+    sampled_numbers = np.random.standard_normal((nb_paths, dim, nb_steps))
+
+    for i in range(dim):
+        sampled_numbers[:, i, :] = mu[i] + sigma[i] * sampled_numbers[:, i, :]
+
+    motion_paths = np.cumsum(sampled_numbers * sqrt(dt), axis=2)
+
+    return motion_paths
+
+
+def generate_BM(nb_paths, dim, nb_steps, dt):
+    z = [0 for _ in range(dim)]
+    o = [1 for _ in range(dim)]
+    return generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, z, o)
 
 
 # ==============================================================================

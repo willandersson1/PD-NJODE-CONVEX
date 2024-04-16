@@ -442,12 +442,13 @@ def train(
     stockmodel = data_utils._STOCK_MODELS[dataset_metadata["model_name"]](
         **dataset_metadata
     )
-    # TODO will have to adjust this when adding a new model
+    # NOTE will have to adjust this when adding a new model
     if (
         use_cond_exp
         and "other_model" not in options
         or use_cond_exp
-        and False  # dataset_metadata["model_name"] in {"Rectangle", "RBM"} # TODO undo this
+        and dataset_metadata["model_name"]
+        in {"RBM", "Rectangle", "BMWeights", "Ball2D_BM"}
     ):
         opt_eval_loss = compute_optimal_eval_loss(
             dl_val, stockmodel, delta_t, T, mult=mult
@@ -546,15 +547,12 @@ def train(
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = "NJODE"
     elif options["other_model"] == "optimal_projection":
-        # TODO this should be keyed by the param dict name, not the dataset
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
-        params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
         params_dict["project"] = dataset_configs.OPTIMAL_PROJECTION_FUNCS[data_dict]
+        params_dict["lmbda"] = options["lmbda"]
         model = models.NJODE_convex_projection(**params_dict)
         model_name = "convex_projection"
     elif options["other_model"] == "vertex_approach":
-        params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
-        params_dict["lmbda"] = 1  # TODO this should be somewhere else no?
         params_dict["vertices"] = dataset_configs.VERTEX_APPROACH_VERTICES[data_dict]
         model = models.NJODE_vertex_approach(**params_dict)
         model_name = "vertex_approach"

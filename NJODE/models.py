@@ -1223,6 +1223,7 @@ class NJODE_convex_projection(NJODE):
         weight_decay=1.0,
         **options,
     ):
+        # TODO definitely don't need a bunch of these, same with other models
         super().__init__(
             input_size,
             hidden_size,
@@ -1263,7 +1264,6 @@ class NJODE_convex_projection(NJODE):
         return_at_last_obs=False,
     ):
         """
-        TODO update this string
         the forward run of this module class, used when calling the module
         instance without a method
         :param times: np.array, of observation times
@@ -1319,7 +1319,7 @@ class NJODE_convex_projection(NJODE):
         loss = 0
         c_sig = None
 
-        if self.input_sig:  # TODO need this?
+        if self.input_sig:
             if self.masked:
                 Mdc = M.clone()
                 Mdc[Mdc == 0] = np.nan
@@ -1550,9 +1550,7 @@ class NJODE_vertex_approach(NJODE):
         readout_nn,
         enc_nn,
         use_rnn,
-        penalising_func,
         vertices,
-        lmbda=1,
         bias=True,
         dropout_rate=0,
         solver="euler",
@@ -1575,9 +1573,7 @@ class NJODE_vertex_approach(NJODE):
             weight_decay,
             **options,
         )
-        self.penalising_func = penalising_func
-        self.lmbda = lmbda
-        self.which_loss = "cvx"
+        self.which_loss = "standard"
         self.vertices = vertices  # tensor shape (1, num, d_X)
 
         assert vertices.shape[1] == input_size
@@ -1614,7 +1610,6 @@ class NJODE_vertex_approach(NJODE):
         return_at_last_obs=False,
     ):
         """
-        TODO update this string
         the forward run of this module class, used when calling the module
         instance without a method
         :param times: np.array, of observation times
@@ -1670,7 +1665,7 @@ class NJODE_vertex_approach(NJODE):
         loss = 0
         c_sig = None
 
-        if self.input_sig:  # TODO need this?
+        if self.input_sig:
             if self.masked:
                 Mdc = M.clone()
                 Mdc[Mdc == 0] = np.nan
@@ -1712,7 +1707,7 @@ class NJODE_vertex_approach(NJODE):
         if return_path:
             path_t = [0]
             path_h = [h]
-            path_y = [self.readout_map(h)]  # TODO should proj here?
+            path_y = [self.readout_map(h)]
         h_at_last_obs = h.clone()
         sig_at_last_obs = c_sig
 
@@ -1744,9 +1739,7 @@ class NJODE_vertex_approach(NJODE):
                 if return_path:
                     path_t.append(current_time)
                     path_h.append(h)
-                    path_y.append(
-                        self.readout_map(h)
-                    )  # TODO should this be before projection?
+                    path_y.append(self.readout_map(h))
 
             # Reached an observation - only update those elements of the batch,
             #    for which an observation is made
@@ -1770,8 +1763,7 @@ class NJODE_vertex_approach(NJODE):
                 c_sig = torch.from_numpy(current_sig).float().to(self.device)
 
             # Using RNNCell to update h. Also updating loss, tau and last_X
-            Y_bj_before_proj = self.readout_map(h)  # TODO: proj here? and in next line
-            Y_bj = Y_bj_before_proj
+            Y_bj = self.readout_map(h)
             X_obs_impute = X_obs
             temp = h.clone()
             if self.masked:
@@ -1791,39 +1783,22 @@ class NJODE_vertex_approach(NJODE):
                 t=torch.cat((tau[i_obs], current_time - tau[i_obs]), dim=1),
             )
             h = temp
-            Y_before_proj = self.readout_map(h)  # TODO: proj here? and in next line
-            Y = Y_before_proj
+            Y = self.readout_map(h)
 
             # update h and sig at last observation
             h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
             sig_at_last_obs = c_sig
 
             if get_loss:
-                if which_loss == "cvx":
-                    loss = loss + LOSS_FUN_DICT[which_loss](
-                        X_obs=X_obs[:, :dim_to],
-                        Y_obs=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                        n_obs_ot=n_obs_ot[i_obs.long()],
-                        batch_size=batch_size,
-                        penalising_func=self.penalising_func,
-                        Y_obs_before_proj=Y_before_proj[i_obs.long(), :dim_to],
-                        Y_obs_bj_before_proj=Y_bj_before_proj[i_obs.long(), :dim_to],
-                        lmbda=self.lmbda,
-                        weight=self.weight,
-                        M_obs=M_obs,
-                    )
-                else:
-                    # This happens if e.g. in evaluation mode
-                    loss = loss + LOSS_FUN_DICT[which_loss](
-                        X_obs=X_obs[:, :dim_to],
-                        Y_obs=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                        n_obs_ot=n_obs_ot[i_obs.long()],
-                        batch_size=batch_size,
-                        weight=self.weight,
-                        M_obs=M_obs,
-                    )
+                loss = loss + LOSS_FUN_DICT[which_loss](
+                    X_obs=X_obs[:, :dim_to],
+                    Y_obs=Y[i_obs.long(), :dim_to],
+                    Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
+                    n_obs_ot=n_obs_ot[i_obs.long()],
+                    batch_size=batch_size,
+                    weight=self.weight,
+                    M_obs=M_obs,
+                )
 
             # make update of last_X and tau, that is not inplace
             #    (otherwise problems in autograd)
@@ -1872,9 +1847,7 @@ class NJODE_vertex_approach(NJODE):
                 if return_path:
                     path_t.append(current_time)
                     path_h.append(h)
-                    path_y.append(
-                        self.readout_map(h)
-                    )  # TODO: proj here? and in next line
+                    path_y.append(self.readout_map(h))
 
         if return_at_last_obs:
             return h_at_last_obs, sig_at_last_obs
