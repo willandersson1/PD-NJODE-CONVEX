@@ -59,7 +59,7 @@ param_dict_FBM1_1 = {
     "data_dict": ["FBM_1_dict"],
     "plot": [True],
     "evaluate": [True],
-    "paths_to_plot": [(0,)],
+    "paths_to_plot": [(0, 1)],
     "saved_models_path": [FBM_models_path],
 }
 param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_1)
@@ -199,7 +199,7 @@ param_dict_Rectangle_1 = {
     "data_dict": ["Rectangle_1_dict"],
     "plot": [True],
     "evaluate": [True],
-    "paths_to_plot": [(0,)],
+    "paths_to_plot": [(0, 1)],
     "saved_models_path": [Rectangle_models_path],
     "other_model": ["optimal_projection"],
 }
@@ -378,7 +378,7 @@ plot_paths_Triangle_BM_weights_dict = {
 Ball2D_BM_models_path = "{}saved_models_Ball2D_BM/".format(data_path)
 param_list_Ball2D_BM = []
 param_dict_Ball2D_BM_1 = {
-    "epochs": [10],
+    "epochs": [3],
     "batch_size": [200],
     "save_every": [1],
     "learning_rate": [0.001],
@@ -398,7 +398,7 @@ param_dict_Ball2D_BM_1 = {
     "data_dict": ["Ball2D_BM_1_dict"],
     "plot": [True],
     "evaluate": [True],
-    "paths_to_plot": [(0,)],
+    "paths_to_plot": [(0, 1)],
     "saved_models_path": [Ball2D_BM_models_path],
 }
 param_list_Ball2D_BM += get_parameter_array(param_dict=param_dict_Ball2D_BM_1)

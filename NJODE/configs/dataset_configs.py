@@ -31,9 +31,9 @@ DATA_DICTS = {
     },
     "Rectangle_1_dict": {
         "model_name": "Rectangle",
-        "nb_paths": 3,
-        "nb_steps": 1000,
-        "maturity": 5.0,
+        "nb_paths": 10,
+        "nb_steps": 100,
+        "maturity": 1.0,
         "dimension": 2,
         "obs_perc": 0.1,
         "mu_x": 2.0,
@@ -52,8 +52,6 @@ DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[0, 0], [1, 0], [0, 1]],
-        "mu": [0, 0.5, 1],
-        "sigma": [2, 1, 1],
         "nb_paths": 3,
         "nb_steps": 1000,
         "maturity": 1.0,
@@ -62,18 +60,26 @@ DATA_DICTS = {
     },
     "Ball2D_BM_1_dict": {
         "model_name": "Ball2D_BM",
-        "max_radius": 10,
-        "radius_mu": 0,
-        "radius_sigma": 1,
-        "angle_mu": [0],
-        "angle_sigma": [1],
-        "nb_paths": 3,
+        "max_radius": 6,
+        "nb_paths": 10,
         "nb_steps": 1000,
         "maturity": 1.0,
         "dimension": 2,
         "obs_perc": 0.05,
     },
 }
+
+
+def opt_Ball2D_proj(ball2d_data_dict_name):
+    def optimal_proj(x):
+        R = DATA_DICTS[ball2d_data_dict_name]["max_radius"]
+        norm = torch.norm(x)
+        if norm**2 <= R**2:
+            return x
+        else:
+            return torch.min(x, (1 / norm) * x)
+
+    return optimal_proj
 
 
 def opt_RBM_proj(RBM_data_dict_name):
@@ -103,6 +109,7 @@ def opt_rect_proj(rect_data_dict_name):
 OPTIMAL_PROJECTION_FUNCS = {
     "RBM_1_dict": opt_RBM_proj("RBM_1_dict"),
     "Rectangle_1_dict": opt_rect_proj("Rectangle_1_dict"),
+    "Ball2D_BM_1_dict": opt_Ball2D_proj("Ball2D_BM_1_dict"),
 }
 
 

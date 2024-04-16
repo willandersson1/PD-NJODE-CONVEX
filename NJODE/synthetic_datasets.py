@@ -6,7 +6,6 @@ code to generate synthetic data from stock-model SDEs
 
 import copy
 import math
-import warnings
 from math import exp, isclose, pi, sqrt
 from pathlib import Path
 
@@ -18,10 +17,10 @@ from scipy.special import softmax
 from scipy.stats import norm
 
 
-def generate_BM(nb_paths, dim, nb_steps, dt, mu, sigma):
-    # TODO probably move this to another place. It can't do in data_utils
+def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma):
+    # TODO probably move this and to another place. It can't do in data_utils
     assert dim == len(mu) == len(sigma)
-    assert all(x >= 0 for x in mu) and all(x >= 0 for x in sigma)
+    assert all(x >= 0 for x in mu) and all(x > 0 for x in sigma)
     assert dt > 0
 
     sampled_numbers = np.random.standard_normal((nb_paths, dim, nb_steps))
@@ -32,6 +31,13 @@ def generate_BM(nb_paths, dim, nb_steps, dt, mu, sigma):
     motion_paths = np.cumsum(sampled_numbers * sqrt(dt), axis=2)
 
     return motion_paths
+
+
+def generate_BM(nb_paths, dim, nb_steps, dt):
+    # TODO probably move this and to another place. It can't do in data_utils
+    z = [0 for _ in range(dim)]
+    o = [1 for _ in range(dim)]
+    return generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, z, o)
 
 
 # CLASSES
@@ -179,9 +185,10 @@ class StockModel:
                     path_y.append(y)
 
             # Reached an observation - set new interval
+            # Select which batches are relevant
             start = time_ptr[i]
             end = time_ptr[i + 1]
-            X_obs = X[start:end]
+            X_obs = X[start:end]  # X_obs first dim is in [1, batch size]
             i_obs = obs_idx[start:end]
 
             # add to observed, if we're tracking it
@@ -439,6 +446,7 @@ class ReflectedBM(StockModel):
         spot_paths[:, :, 0] = x0
         for i in range(self.nb_paths):
             for j in range(self.dimensions):
+                # TODO change this to use the generate bm function. scale is just dt here
                 scale = 1.0 * self.maturity / (self.nb_steps + 1)
                 raw_paths = (
                     scale
@@ -522,6 +530,7 @@ class ReflectedBM(StockModel):
 
         # TODO hack fix when e.g. at 0.999999994 and c is 1
         #      should put this into a separate function
+        # TODO this is probably really slow
         rel_tol = 10e-4
         if not (c <= x) and isclose(x, c, rel_tol=rel_tol):
             x = c
@@ -543,9 +552,10 @@ class ReflectedBM(StockModel):
         if not (c <= x0 <= d):  # TODO def rethink this
             x0 = c if abs(x0 - c) < abs(x0 - d) else d
 
-        assert c <= x <= d
-        assert c <= x0 <= d
-        assert t > t0
+        # TODO rem this for performance
+        # assert c <= x <= d
+        # assert c <= x0 <= d
+        # assert t > t0
 
         coeff = 1.0 / (sigma * sqrt(2 * pi * (t - t0)))
         S1 = coeff * sum(
@@ -588,7 +598,6 @@ class ReflectedBM(StockModel):
             t1 = (2 * mu * (n * d - (n + 1) * c + x)) / sigma**2
             S3 += exp(t1) * t2
         S3 = -coeff * S3
-        # TODO this ^ term seems to be negative sometimes and makes the whole pdf negative
 
         # Same technique as above
         S4 = 0
@@ -624,17 +633,16 @@ class ReflectedBM(StockModel):
         t = current_t + delta_t
         out = np.zeros_like(y)
         for i, x0 in enumerate(y):
-            x0 = self.lb + 0.00001
-            t = t0 + 0.5
             integrand = lambda x: x * self.reflected_bm_pdf(x, t, x0, t0)
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore", r"The occurrence of roundoff error is detected*"
-                )
-                warnings.filterwarnings(
-                    "ignore", r"The maximum number of subdivisions*"
-                )
-                out[i] = quad(integrand, self.lb, self.ub)[0]
+            # Increase error tolerance for speed, default ~1e-8
+            # TODO rem this stuff, prints etc
+            # TODO maybe tolerance of 1e-4?
+            integral, _, info = quad(
+                integrand, self.lb, self.ub, epsabs=1e-3, full_output=True
+            )
+            out[i] = integral
+            n_subintervals = info["last"]
+            print(round(t0, 4), n_subintervals)
 
         return out
 
@@ -756,10 +764,6 @@ class Ball2D_BM(StockModel):
     def __init__(
         self,
         max_radius,
-        radius_mu,
-        radius_sigma,
-        angle_mu,
-        angle_sigma,
         nb_paths,
         nb_steps,
         maturity,
@@ -767,11 +771,6 @@ class Ball2D_BM(StockModel):
         **kwargs,
     ):
         assert dimension == 2
-        assert len(angle_mu) == len(angle_sigma) == dimension - 1
-        self.radius_mu = radius_mu
-        self.radius_sigma = radius_sigma
-        self.angle_mu = angle_mu
-        self.angle_sigma = angle_sigma
         self.max_radius = max_radius
         self.dimension = dimension
         self.nb_paths = nb_paths
@@ -793,15 +792,15 @@ class Ball2D_BM(StockModel):
         if x0 is None:
             x0 = [0, 0]
         else:
-            assert x0[0] ** 2 + x0[1] ** 2 <= self.max_radius**2
+            assert x0[0] ** 2 + x0[1] ** 2 <= self.max_radius**2 or isclose(
+                x0[0] ** 2 + x0[1] ** 2, self.max_radius**2
+            )
 
         radius_raw_paths = generate_BM(
             self.nb_paths,
             1,
             self.nb_steps,
             self.dt,
-            [self.radius_mu],
-            [self.radius_sigma],
         )
 
         radius_paths = self.max_radius * np.abs(np.tanh(radius_raw_paths))
@@ -811,8 +810,6 @@ class Ball2D_BM(StockModel):
             self.dimension - 1,
             self.nb_steps,
             self.dt,
-            self.angle_mu,
-            self.angle_sigma,
         )
 
         x_coords = radius_paths * np.cos(self.alpha_theta * angle_raw_paths)
@@ -827,7 +824,9 @@ class Ball2D_BM(StockModel):
         for p in range(self.nb_paths):
             for s in range(self.nb_steps + 1):
                 x, y = res[p, :, s]
-                assert x**2 + y**2 <= self.max_radius**2
+                assert x**2 + y**2 <= self.max_radius**2 or isclose(
+                    x**2 + y**2, self.max_radius**2
+                )
 
         return res, self.dt
 
@@ -845,27 +844,28 @@ class Ball2D_BM(StockModel):
         return res
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
-        # Radius conditional expectation
-        # TODO am I doing this right with this double layering
-        # of y and res??? did I do this in other ones? ir is dim wrong?
+        res = np.zeros_like(y)
         s, t = current_t, current_t + delta_t
-        r_s = np.linalg.norm(y, 2) / self.alpha_r
-        if r_s == 0:
-            cos_s, sin_s = 0, 0
-        else:
-            cos_s = y[0][0] / (self.alpha_r * r_s)
-            sin_s = y[0][1] / (self.alpha_r * r_s)
+        for i, point in enumerate(y):
+            # Radius conditional expectation
+            r_s = np.linalg.norm(point, 2) / self.alpha_r
+            if r_s == 0:
+                cos_s, sin_s = 0, 0
+            else:
+                cos_s = point[0] / (self.alpha_r * r_s)
+                sin_s = point[1] / (self.alpha_r * r_s)
 
-        r_t = self.monte_carlo_radius(r_s, t - s)
+            r_t = self.monte_carlo_radius(r_s, t - s)
 
-        pow = (self.alpha_theta) * (t - s)
-        temp = (1 / sqrt(math.e)) ** pow
-        cos_t = temp * cos_s
-        sin_t = temp * sin_s
+            # Angle conditional expectation
+            pow = (self.alpha_theta) * (t - s)
+            temp = (1 / sqrt(math.e)) ** pow
+            cos_t = temp * cos_s
+            sin_t = temp * sin_s
 
-        res = self.alpha_r * r_t * np.array([cos_t, sin_t])
+            res[i] = self.alpha_r * r_t * np.array([cos_t, sin_t])
 
-        return np.array([res])
+        return res
 
 
 class BMWeights(StockModel):
@@ -873,19 +873,14 @@ class BMWeights(StockModel):
         self,
         vertices,
         should_compute_approx_cond_exp_paths,
-        mu,
-        sigma,
         dimension,
         nb_paths,
         nb_steps,
         maturity,
         **kwargs,
     ):
-        assert len(vertices) == len(mu) == len(sigma)
         assert all(len(v) == dimension for v in vertices)
         self.vertices = np.array(vertices)
-        self.mu = mu
-        self.sigma = sigma
         self.dimension = dimension
         self.nb_paths = nb_paths
         self.nb_steps = nb_steps
@@ -961,8 +956,6 @@ class BMWeights(StockModel):
             len(self.vertices),
             self.nb_steps,
             self.dt,
-            self.mu,
-            self.sigma,
         )
         spot_weight_paths = softmax(spot_motion_paths, axis=1)
 
@@ -994,6 +987,7 @@ class BMWeights(StockModel):
         return spot_paths, self.dt
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
+        # TODO is this not broken like Ball2D and RBM are?
         if self.should_compute_approx_cond_exp_paths:
             last_obs_time = kwargs["last_obs_time"]
             return self.compute_cond_exp_approx(

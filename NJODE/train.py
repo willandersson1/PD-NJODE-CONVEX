@@ -25,7 +25,7 @@ import torch.nn as nn
 import tqdm
 from configs import config, dataset_configs
 from sklearn.model_selection import train_test_split
-from synthetic_datasets import Rectangle, ReflectedBM
+from synthetic_datasets import Ball2D_BM, Rectangle, ReflectedBM
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
@@ -1027,7 +1027,7 @@ def plot_one_path_with_pred(
     :param delta_t: float
     :param T: float
     :param path_to_plot: list of ints, which paths to plot (i.e. which elements
-            oof the batch)
+            of the batch)
     :param save_path: str, the path where to save the plot
     :param filename: str, the filename for the plot, should have one insertion
             possibility to put the path number
@@ -1134,7 +1134,7 @@ def plot_one_path_with_pred(
         if dim == 1:
             axs = [axs]
 
-        if dataset_metadata["model_name"] == "Rectangle":
+        if dataset_metadata["model_name"] in {"Rectangle", "Ball2D_BM"}:
             assert dim == 2
             skip_normal_plotting = True
 
@@ -1285,6 +1285,7 @@ def plot_one_path_with_pred(
         if isinstance(stockmodel, ReflectedBM):
             plt.axhline(y=stockmodel.lb)
             plt.axhline(y=stockmodel.ub)
+
         elif isinstance(stockmodel, Rectangle):
             t0, t1 = path_t_true_X[0], path_t_true_X[-1]
             x_lb, x_ub = stockmodel.rbm_x.lb, stockmodel.rbm_x.ub
@@ -1312,6 +1313,25 @@ def plot_one_path_with_pred(
                     [t0, t1],
                     [x_ub, x_ub],
                     [y_ub, y_ub],
+                    color="gray",
+                )
+                ax.view_init(a1, a2)
+
+        elif isinstance(stockmodel, Ball2D_BM):
+            t0, t1 = path_t_true_X[0], path_t_true_X[-1]
+            halftime = (t1 + t0) / 2
+            R = stockmodel.max_radius
+            for ax, (a1, a2) in zip(my_axs, angles):
+                ax.plot(
+                    [halftime, halftime],
+                    [-R, R],
+                    [0, 0],
+                    color="gray",
+                )
+                ax.plot(
+                    [halftime, halftime],
+                    [0, 0],
+                    [-R, R],
                     color="gray",
                 )
                 ax.view_init(a1, a2)
