@@ -24,13 +24,62 @@ flagfile = "{}flagfile.tmp".format(data_path)
 
 saved_models_path = "{}saved_models/".format(data_path)
 
+STANDARD_PARAMS_EXTRACT_DESC = (
+    (
+        "dataset",
+        "network_size",
+        "nb_layers",
+        "activation_function_1",
+        "use_rnn",
+        "readout_nn",
+        "dropout_rate",
+        "hidden_size",
+        "batch_size",
+        "which_loss",
+        "input_sig",
+        "level",
+    ),
+)
+
+STANDARD_VAL_TEST_PARAMS_EXTRACT = (
+    ("max", "epoch", "epoch", "epochs_trained"),
+    (
+        "min",
+        "evaluation_mean_diff",
+        "evaluation_mean_diff",
+        "evaluation_mean_diff_min",
+    ),
+    ("min", "eval_loss", "eval_loss", "eval_loss_min"),
+)
+
+
+def get_standard_plot_best_paths(model_ids, models_path, paths):
+    return {
+        "model_ids": model_ids,
+        "saved_models_path": models_path,
+        "which": "best",
+        "paths_to_plot": paths,
+        "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
+    }
+
+
+def get_standard_overview_dict(param_list, models_path):
+    return {
+        "ids_from": 1,
+        "ids_to": len(param_list),
+        "path": models_path,
+        "params_extract_desc": STANDARD_PARAMS_EXTRACT_DESC,
+        "val_test_params_extract": STANDARD_VAL_TEST_PARAMS_EXTRACT,
+        "sortby": ["evaluation_mean_diff_min"],
+    }
+
 
 # ==============================================================================
 # TRAINING PARAM DICTS
 # ------------------------------------------------------------------------------
-ode_nn = ((50, "tanh"), (50, "tanh"))
-readout_nn = ((50, "tanh"), (50, "tanh"))
-enc_nn = ((50, "tanh"), (50, "tanh"))
+DEFAULT_ODE_NN = ((50, "tanh"), (50, "tanh"))
+DEFAULT_READOUT_NN = ((50, "tanh"), (50, "tanh"))
+DEFAULT_ENC_NN = ((50, "tanh"), (50, "tanh"))
 
 # ------------------------------------------------------------------------------
 # --- Fractional Brownian Motion
@@ -46,9 +95,9 @@ param_dict_FBM1_1 = {
     "hidden_size": [10, 50],
     "bias": [True],
     "dropout_rate": [0.1],
-    "ode_nn": [ode_nn],
-    "readout_nn": [readout_nn],
-    "enc_nn": [enc_nn],
+    "ode_nn": [DEFAULT_ODE_NN],
+    "readout_nn": [DEFAULT_READOUT_NN],
+    "enc_nn": [DEFAULT_ENC_NN],
     "use_rnn": [False],
     "func_appl_X": [[]],
     "solver": ["euler"],
@@ -62,47 +111,13 @@ param_dict_FBM1_1 = {
 }
 param_list_FBM1 += get_parameter_array(param_dict=param_dict_FBM1_1)
 
-overview_dict_FBM1 = dict(
-    ids_from=1,
-    ids_to=len(param_list_FBM1),
-    path=FBM_models_path,
-    params_extract_desc=(
-        "dataset",
-        "network_size",
-        "nb_layers",
-        "activation_function_1",
-        "use_rnn",
-        "readout_nn",
-        "dropout_rate",
-        "hidden_size",
-        "batch_size",
-        "which_loss",
-        "input_sig",
-        "level",
-    ),
-    val_test_params_extract=(
-        ("max", "epoch", "epoch", "epochs_trained"),
-        (
-            "min",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff_min",
-        ),
-        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
-    ),
-    sortby=["evaluation_mean_diff_min"],
-)
+overview_dict_FBM1 = get_standard_overview_dict(param_dict_FBM1_1, FBM_models_path)
 
-plot_paths_FBM_dict = {
-    "model_ids": [1],
-    "saved_models_path": FBM_models_path,
-    "which": "best",
-    "paths_to_plot": [0],
-    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
-}
+plot_paths_FBM_dict = get_standard_plot_best_paths([1], FBM_models_path, [0])
 
 # ------------------------------------------------------------------------------
 # --- Reflected Brownian Motion
+# TODO so models path not needed, the others are though
 RBM_models_path = "{}saved_models_RBM/".format(data_path)
 param_list_RBM = []
 param_dict_RBM_1 = {
@@ -115,9 +130,9 @@ param_dict_RBM_1 = {
     "hidden_size": [10],
     "bias": [True],
     "dropout_rate": [0.1],
-    "ode_nn": [ode_nn],
-    "readout_nn": [readout_nn],
-    "enc_nn": [enc_nn],
+    "ode_nn": [DEFAULT_ODE_NN],
+    "readout_nn": [DEFAULT_READOUT_NN],
+    "enc_nn": [DEFAULT_ENC_NN],
     "use_rnn": [False],
     "func_appl_X": [[]],
     "solver": ["euler"],
@@ -133,45 +148,9 @@ param_dict_RBM_1 = {
 }
 param_list_RBM += get_parameter_array(param_dict=param_dict_RBM_1)
 
-overview_dict_RBM = dict(
-    ids_from=1,
-    ids_to=len(param_list_RBM),
-    path=RBM_models_path,
-    params_extract_desc=(
-        "dataset",
-        "network_size",
-        "nb_layers",
-        "activation_function_1",
-        "use_rnn",
-        "readout_nn",
-        "dropout_rate",
-        "hidden_size",
-        "batch_size",
-        "which_loss",
-        "input_sig",
-        "level",
-    ),
-    val_test_params_extract=(
-        ("max", "epoch", "epoch", "epochs_trained"),
-        (
-            "min",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff_min",
-        ),
-        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
-    ),
-    sortby=["evaluation_mean_diff_min"],
-)
+overview_dict_RBM = get_standard_overview_dict(param_list_RBM, RBM_models_path)
 
-plot_paths_RBM_dict = {
-    "model_ids": [0, 1],
-    "saved_models_path": RBM_models_path,
-    "which": "best",
-    "paths_to_plot": [0, 1],
-    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
-}
-
+plot_paths_RBM_dict = get_standard_plot_best_paths([0, 1], RBM_models_path, [0, 1])
 
 # ------------------------------------------------------------------------------
 # --- Rectangle
@@ -187,9 +166,9 @@ param_dict_Rectangle_1 = {
     "hidden_size": [10],
     "bias": [True],
     "dropout_rate": [0.1],
-    "ode_nn": [ode_nn],
-    "readout_nn": [readout_nn],
-    "enc_nn": [enc_nn],
+    "ode_nn": [DEFAULT_ODE_NN],
+    "readout_nn": [DEFAULT_READOUT_NN],
+    "enc_nn": [DEFAULT_ENC_NN],
     "use_rnn": [False],
     "func_appl_X": [[]],
     "solver": ["euler"],
@@ -204,44 +183,13 @@ param_dict_Rectangle_1 = {
 }
 param_list_Rectangle += get_parameter_array(param_dict=param_dict_Rectangle_1)
 
-overview_dict_Rectangle = dict(
-    ids_from=1,
-    ids_to=len(param_list_Rectangle),
-    path=Rectangle_models_path,
-    params_extract_desc=(
-        "dataset",
-        "network_size",
-        "nb_layers",
-        "activation_function_1",
-        "use_rnn",
-        "readout_nn",
-        "dropout_rate",
-        "hidden_size",
-        "batch_size",
-        "which_loss",
-        "input_sig",
-        "level",
-    ),
-    val_test_params_extract=(
-        ("max", "epoch", "epoch", "epochs_trained"),
-        (
-            "min",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff_min",
-        ),
-        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
-    ),
-    sortby=["evaluation_mean_diff_min"],
+overview_dict_Rectangle = get_standard_overview_dict(
+    param_list_Rectangle, Rectangle_models_path
 )
 
-plot_paths_Rectangle_dict = {
-    "model_ids": [0],
-    "saved_models_path": Rectangle_models_path,
-    "which": "best",
-    "paths_to_plot": [0],
-    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
-}
+plot_paths_Rectangle_dict = get_standard_plot_best_paths(
+    [0], Rectangle_models_path, [0]
+)
 
 # ------------------------------------------------------------------------------
 # --- Rectangle vertex approach
@@ -257,43 +205,13 @@ param_dict_Rectangle_1_vertex_approach["saved_models_path"] = [
 param_list_Rectangle_vertex_approach += get_parameter_array(
     param_dict=param_dict_Rectangle_1_vertex_approach
 )
-overview_dict_Rectangle_vertex_approach = dict(
-    ids_from=1,
-    ids_to=len(param_list_Rectangle_vertex_approach),
-    path=Rectangle_vertex_approach_models_path,
-    params_extract_desc=(
-        "dataset",
-        "network_size",
-        "nb_layers",
-        "activation_function_1",
-        "use_rnn",
-        "readout_nn",
-        "dropout_rate",
-        "hidden_size",
-        "batch_size",
-        "which_loss",
-        "input_sig",
-        "level",
-    ),
-    val_test_params_extract=(
-        ("max", "epoch", "epoch", "epochs_trained"),
-        (
-            "min",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff_min",
-        ),
-        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
-    ),
-    sortby=["evaluation_mean_diff_min"],
+overview_dict_Rectangle_vertex_approach = get_standard_overview_dict(
+    param_list_Rectangle_vertex_approach, Rectangle_vertex_approach_models_path
 )
-plot_paths_Rectangle_vertex_approach_dict = {
-    "model_ids": [0],
-    "saved_models_path": Rectangle_vertex_approach_models_path,
-    "which": "best",
-    "paths_to_plot": [0],
-    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
-}
+
+plot_paths_Rectangle_vertex_approach_dict = get_standard_plot_best_paths(
+    [0], Rectangle_vertex_approach_models_path, [0]
+)
 
 
 # ------------------------------------------------------------------------------
@@ -313,9 +231,9 @@ param_dict_Triangle_BM_weights_1 = {
     "hidden_size": [10],
     "bias": [True],
     "dropout_rate": [0.1],
-    "ode_nn": [ode_nn],
-    "readout_nn": [readout_nn],
-    "enc_nn": [enc_nn],
+    "ode_nn": [DEFAULT_ODE_NN],
+    "readout_nn": [DEFAULT_READOUT_NN],
+    "enc_nn": [DEFAULT_ENC_NN],
     "use_rnn": [False],
     "func_appl_X": [[]],
     "solver": ["euler"],
@@ -332,44 +250,13 @@ param_list_Triangle_BM_weights += get_parameter_array(
     param_dict=param_dict_Triangle_BM_weights_1
 )
 
-overview_dict_Triangle_BM_weights = dict(
-    ids_from=1,
-    ids_to=len(param_list_Triangle_BM_weights),
-    path=Triangle_BM_weights_models_path,
-    params_extract_desc=(
-        "dataset",
-        "network_size",
-        "nb_layers",
-        "activation_function_1",
-        "use_rnn",
-        "readout_nn",
-        "dropout_rate",
-        "hidden_size",
-        "batch_size",
-        "which_loss",
-        "input_sig",
-        "level",
-    ),
-    val_test_params_extract=(
-        ("max", "epoch", "epoch", "epochs_trained"),
-        (
-            "min",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff_min",
-        ),
-        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
-    ),
-    sortby=["evaluation_mean_diff_min"],
+overview_dict_Triangle_BM_weights = get_standard_overview_dict(
+    param_list_Triangle_BM_weights, Triangle_BM_weights_models_path
 )
 
-plot_paths_Triangle_BM_weights_dict = {
-    "model_ids": [0],
-    "saved_models_path": Triangle_BM_weights_models_path,
-    "which": "best",
-    "paths_to_plot": [0],
-    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
-}
+plot_paths_Triangle_BM_weights_dict = get_standard_plot_best_paths(
+    [0], Triangle_BM_weights_models_path, [0]
+)
 
 
 ###################
@@ -386,9 +273,9 @@ param_dict_Ball2D_BM_1 = {
     "hidden_size": [10, 50],
     "bias": [True],
     "dropout_rate": [0.1],
-    "ode_nn": [ode_nn],
-    "readout_nn": [readout_nn],
-    "enc_nn": [enc_nn],
+    "ode_nn": [DEFAULT_ODE_NN],
+    "readout_nn": [DEFAULT_READOUT_NN],
+    "enc_nn": [DEFAULT_ENC_NN],
     "use_rnn": [False],
     "func_appl_X": [[]],
     "solver": ["euler"],
@@ -402,44 +289,13 @@ param_dict_Ball2D_BM_1 = {
 }
 param_list_Ball2D_BM += get_parameter_array(param_dict=param_dict_Ball2D_BM_1)
 
-overview_dict_Ball2D_BM = dict(
-    ids_from=1,
-    ids_to=len(param_list_Ball2D_BM),
-    path=Ball2D_BM_models_path,
-    params_extract_desc=(
-        "dataset",
-        "network_size",
-        "nb_layers",
-        "activation_function_1",
-        "use_rnn",
-        "readout_nn",
-        "dropout_rate",
-        "hidden_size",
-        "batch_size",
-        "which_loss",
-        "input_sig",
-        "level",
-    ),
-    val_test_params_extract=(
-        ("max", "epoch", "epoch", "epochs_trained"),
-        (
-            "min",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff",
-            "evaluation_mean_diff_min",
-        ),
-        ("min", "eval_loss", "eval_loss", "eval_loss_min"),
-    ),
-    sortby=["evaluation_mean_diff_min"],
+overview_dict_Ball2D_BM = get_standard_overview_dict(
+    param_list_Ball2D_BM, Ball2D_BM_models_path
 )
 
-plot_paths_Ball2D_BM_dict = {
-    "model_ids": [1],
-    "saved_models_path": Ball2D_BM_models_path,
-    "which": "best",
-    "paths_to_plot": [0],
-    "save_extras": {"bbox_inches": "tight", "pad_inches": 0.01},
-}
+plot_paths_Ball2D_BM_dict = get_standard_plot_best_paths(
+    [1], Ball2D_BM_models_path, [0]
+)
 
 
 CONVEX_PEN_FUNCS = {
