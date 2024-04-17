@@ -5,7 +5,6 @@ code for running the experiments
 """
 
 import json
-import json
 import os
 import socket
 import traceback
@@ -15,7 +14,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from absl import app, flags
-from configs import config
+from configs import config, config_constants, config_utils
 from joblib import Parallel, delayed
 from train_switcher import train_switcher
 
@@ -35,7 +34,9 @@ flags.DEFINE_integer(
 )
 flags.DEFINE_bool("DEBUG", False, "whether to run parallel in debug mode")
 flags.DEFINE_string(
-    "saved_models_path", config.saved_models_path, "path where the models are saved"
+    "saved_models_path",
+    config_constants.saved_models_path,
+    "path where the models are saved",
 )
 flags.DEFINE_string(
     "overwrite_params", None, "name of dict to use for overwriting params"
@@ -110,7 +111,7 @@ def parallel_training(
     model_ids=None,
     nb_jobs=1,
     first_id=None,
-    saved_models_path=config.saved_models_path,
+    saved_models_path=config_constants.saved_models_path,
     overwrite_params=None,
 ):
     """
@@ -145,7 +146,7 @@ def parallel_training(
     if params is not None and "saved_models_path" in params[0]:
         saved_models_path = params[0]["saved_models_path"]
     model_overview_file_name = "{}model_overview.csv".format(saved_models_path)
-    config.makedirs(saved_models_path)
+    config_utils.makedirs(saved_models_path)
     if not os.path.exists(model_overview_file_name):
         df_overview = pd.DataFrame(data=None, columns=["id", "description"])
         max_id = 0

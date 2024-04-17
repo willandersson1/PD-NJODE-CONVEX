@@ -13,7 +13,7 @@ import matplotlib.colors
 import numpy as np
 import pandas as pd
 import pdf2image
-from configs import config
+from configs import config, config_constants, config_utils
 from train_switcher import train_switcher
 
 if "ada-" not in socket.gethostname():
@@ -107,7 +107,7 @@ def generate_training_progress_gif(model_id, which_path=1):
     :param model_id: int
     :param which_path: int
     """
-    path = config.saved_models_path
+    path = config_constants.saved_models_path
     path = os.path.join(path, "id-{}/plots/".format(model_id))
     filenames = []
     for f in sorted(os.listdir(path)):
@@ -132,13 +132,13 @@ def generate_training_progress_gif(model_id, which_path=1):
 
 
 def plot_convergence_study(
-    path=config.saved_models_path,
+    path=config_constants.saved_models_path,
     ids_from=None,
     ids_to=None,
     x_axis="training_size",
     x_log=False,
     y_log=False,
-    save_path="{}plots/".format(config.data_path),
+    save_path="{}plots/".format(config_utils.data_path),
     save_extras={"bbox_inches": "tight", "pad_inches": 0.01},
     file_name="conv_study",
 ):
@@ -239,7 +239,7 @@ def plot_convergence_study(
 
 
 def get_training_overview(
-    path=config.saved_models_path,
+    path=config_constants.saved_models_path,
     ids_from=None,
     ids_to=None,
     params_extract_desc=("network_size", "training_size", "dataset", "hidden_size"),
@@ -363,7 +363,7 @@ def get_training_overview(
 
 
 def plot_paths_from_checkpoint(
-    saved_models_path=config.saved_models_path,
+    saved_models_path=config_constants.saved_models_path,
     model_ids=(1,),
     which="best",
     paths_to_plot=(0,),
@@ -450,7 +450,7 @@ def plot_loss_and_metric(
 
     for model_id in model_ids:
         path = os.path.join(
-            config.saved_models_path,
+            config_constants.saved_models_path,
             "id-{}".format(model_id),
             "metric_id-{}.csv".format(model_id),
         )
@@ -464,7 +464,7 @@ def plot_loss_and_metric(
         axes[-1].set(xlabel=time_col)
 
         save_path = os.path.join(
-            config.saved_models_path,
+            config_constants.saved_models_path,
             "id-{}".format(model_id),
             file_name.format(model_id),
         )
@@ -531,7 +531,7 @@ def get_cross_validation(
         },
     ),
     save_path="{}cross_val.csv",
-    path=config.saved_models_path,
+    path=config_constants.saved_models_path,
 ):
     """
     function to get the cross validation of the climate dataset

@@ -23,7 +23,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
-from configs import config, dataset_configs
+from configs import config, config_constants, config_utils, dataset_configs
 from sklearn.model_selection import train_test_split
 from synthetic_datasets import Ball2D_BM, Rectangle, ReflectedBM
 from torch.backends import cudnn
@@ -49,9 +49,9 @@ print("SERVER={}".format(SERVER))
 
 # ==============================================================================
 # Global variables
-data_path = config.data_path
-saved_models_path = config.saved_models_path
-flagfile = config.flagfile
+data_path = config_utils.data_path
+saved_models_path = config_constants.saved_models_path
+flagfile = config_constants.flagfile
 
 METR_COLUMNS: List[str] = [
     "epoch",
@@ -72,7 +72,7 @@ USE_GPU = False
 # =====================================================================================================================
 # Functions
 # TODO this is bad
-makedirs = config.makedirs
+makedirs = config_utils.makedirs
 
 
 def train(
