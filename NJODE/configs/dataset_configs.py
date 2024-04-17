@@ -46,7 +46,6 @@ DATA_DICTS = {
         "use_numerical_cond_exp": True,
         "width": 4,
         "length": 10,
-        "base_point": (1, 1),
     },
     "Triangle_BM_weights_1_dict": {
         "model_name": "BMWeights",
@@ -95,7 +94,7 @@ def opt_RBM_proj(RBM_data_dict_name):
 
 def opt_rect_proj(rect_data_dict_name):
     data_dict = DATA_DICTS[rect_data_dict_name]
-    lb_x, lb_y = data_dict["base_point"]
+    lb_x, lb_y = 0, 0
     ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
     lower = torch.tensor([lb_x, lb_y])
     upper = torch.tensor([ub_x, ub_y])
@@ -115,7 +114,7 @@ OPTIMAL_PROJECTION_FUNCS = {
 
 def get_ccw_rectangle_vertices(rect_data_dict_name):
     data_dict = DATA_DICTS[rect_data_dict_name]
-    lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
+    lb_x, lb_y = 0, 0
     ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
 
     # counterclockwise, starting from bottom-left
@@ -147,7 +146,7 @@ def standard_2_norm_for_lb_ub(Y, lb, ub):
 
 
 def rect_pen_func(Y, data_dict):
-    lb_x, lb_y = data_dict["base_point"][0], data_dict["base_point"][1]
+    lb_x, lb_y = 0, 0
     ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
 
     # Separable so just project each coordinate independently
