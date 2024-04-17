@@ -304,9 +304,9 @@ Triangle_BM_weights_models_path = "{}saved_models_Triangle_BM_weights/".format(
 )
 param_list_Triangle_BM_weights = []
 param_dict_Triangle_BM_weights_1 = {
-    "epochs": [10],
+    "epochs": [150],
     "batch_size": [200],
-    "save_every": [1],
+    "save_every": [10],
     "learning_rate": [0.001],
     "test_size": [0.2],
     "seed": [398],

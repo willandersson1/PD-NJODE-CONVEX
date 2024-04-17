@@ -240,7 +240,7 @@ class StockModel:
         weight=0.5,
         M=None,
         mult=None,
-        path_idx=None,
+        path_idxs=None,
     ):
         if mult is not None and mult > 1:
             bs, dim = start_X.shape
@@ -263,7 +263,7 @@ class StockModel:
             get_loss=True,
             weight=weight,
             M=M,
-            path_idx=path_idx,
+            path_idxs=path_idxs,
         )
 
         return loss
@@ -412,7 +412,7 @@ class ReflectedBM(StockModel):
 
         # If wasn't able to project with the above logic, need to expand approximation
         raise Exception(
-            f"Not maz_z of {self.max_z} not enough to approximate projection of {x}"
+            f"maz_z of {self.max_z} not enough to approximate projection of {x}"
         )
 
     def _generate_approx_paths(self, x0):
@@ -425,7 +425,7 @@ class ReflectedBM(StockModel):
                 raw_paths = generate_BM_drift_diffusion(
                     1, 1, self.nb_steps, self.dt, [self.mu], [self.sigma]
                 )
-                raw_paths += x0 * sqrt(self.dt)  # acount for the x0
+
                 projected_paths = np.array(
                     [self._proj_approximately(x) for x in raw_paths[0, 0]]
                 )
@@ -830,17 +830,18 @@ class BMWeights(StockModel):
         # TODO really hacky since assumes just the first BMWeights
         return Path("..") / "data" / "training_data" / "paths" / "BMWeights-1"
 
+    def _get_time_idx_from_time(self, t):
+        idx = round(t / self.dt, 5)  # avoid floating point errors, e.g. 3.0000001
+        assert float.is_integer(idx), "Strategy to get index from times failed"
+        idx = int(idx)
+
+        return idx
+
     def compute_cond_exp_approx(self, s, t, path_idx):
-        s_idx = round(s / self.dt, 5)  # avoid floating point errors, e.g. 5.0000001
-        assert float.is_integer(s_idx), "Strategy to get index from times failed :("
-        s_idx = int(s_idx)
+        s_idx = self._get_time_idx_from_time(s)
 
         fp = self.paths_dir / "motion_paths.npy"
         self.motion_paths = np.load(fp)
-
-        # TODO remove this hack. It's because x0 is not really part of the motion path yet
-        if s_idx == self.motion_paths.shape[2]:
-            s_idx = self.motion_paths.shape[2] - 1
 
         W_tilde_s = self.motion_paths[path_idx, :, s_idx]  # what we condition on
         n = len(self.vertices)
@@ -863,56 +864,55 @@ class BMWeights(StockModel):
             increment_sample = np.random.normal(0, sqrt(t - s), size=n)
             weight_cond_exp += (1 / N) * sample_cond_exp(increment_sample)
 
-        # TODO need to redo this since should be like batch size
         res = np.array([self.weights_to_point(weight_cond_exp)])
 
         return res
 
     def generate_paths(self, x0=None):
+        k = len(self.vertices)
+        if x0 is None:
+            x0 = np.zeros(k)
+
+        assert len(x0) == k
+
         spot_motion_paths = generate_BM(
-            self.nb_paths,
-            len(self.vertices),
-            self.nb_steps,
-            self.dt,
+            self.nb_paths, k, self.nb_steps + 1, self.dt, x0
         )
         spot_weight_paths = softmax(spot_motion_paths, axis=1)
-
         spot_paths = np.zeros((self.nb_paths, self.dimension, self.nb_steps + 1))
-        if x0 is None:
-            # Take a point inside the convex hull (average point)
-            x0 = sum(self.vertices) / len(self.vertices)
-        spot_paths[:, :, 0] = x0
 
         # Convert to points
         for p in range(self.nb_paths):
-            for s in range(self.nb_steps):
+            for s in range(self.nb_steps + 1):
                 w = spot_weight_paths[p, :, s]
                 pt = self.weights_to_point(w)
-                spot_paths[p, :, s + 1] = pt  # add 1 because we prepended x0
+                spot_paths[p, :, s] = pt
 
         if self.should_compute_approx_cond_exp_paths:
-            # TODO x0 might have to be a weight
-            # TODO find a better way to save things
             p = self.paths_dir
             p.mkdir(parents=True, exist_ok=True)
 
             self.motion_paths = spot_motion_paths
             fp = p / "motion_paths.npy"
+            assert not fp.is_file(), "There's already a motion path here"
             np.save(fp, self.motion_paths)
 
         return spot_paths, self.dt
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
         if self.should_compute_approx_cond_exp_paths:
-            last_obs_time = kwargs["last_obs_time"]
-            return self.compute_cond_exp_approx(
-                last_obs_time, delta_t + current_t, kwargs["path_idx"]
-            )
+            s = kwargs["last_obs_time"]
+            t = delta_t + current_t
+            cond_exp = np.zeros_like(y)
+            for i in range(len(y)):
+                path_idx = kwargs["path_idxs"][i]
+                cond_exp[i] = self.compute_cond_exp_approx(s, t, path_idx)
+            return cond_exp
         else:
             raise NotImplementedError()
 
 
-def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma):
+def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma, x0=None):
     assert dim == len(mu) == len(sigma)
     assert all(x >= 0 for x in mu) and all(x > 0 for x in sigma)
     assert dt > 0
@@ -922,15 +922,19 @@ def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma):
     for i in range(dim):
         sampled_numbers[:, i, :] = mu[i] + sigma[i] * sampled_numbers[:, i, :]
 
+    # wlog just replace the first sample by x0
+    if x0 is not None:
+        sampled_numbers[:, :, 0] = x0
+
     motion_paths = np.cumsum(sampled_numbers * sqrt(dt), axis=2)
 
     return motion_paths
 
 
-def generate_BM(nb_paths, dim, nb_steps, dt):
+def generate_BM(nb_paths, dim, nb_steps, dt, x0=None):
     z = [0 for _ in range(dim)]
     o = [1 for _ in range(dim)]
-    return generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, z, o)
+    return generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, z, o, x0)
 
 
 # ==============================================================================

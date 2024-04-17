@@ -52,7 +52,7 @@ DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[0, 0], [1, 0], [0, 1]],
-        "nb_paths": 10,
+        "nb_paths": 20,
         "nb_steps": 1000,
         "maturity": 1.0,
         "dimension": 2,

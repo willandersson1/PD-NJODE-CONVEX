@@ -293,6 +293,7 @@ class IrregularDataset(Dataset):
         self.observed_dates = observed_dates[idx]
         self.nb_obs = nb_obs[idx]
         self.obs_noise = obs_noise
+        self.path_idxs = idx
 
     def __len__(self):
         return len(self.nb_obs)
@@ -312,6 +313,7 @@ class IrregularDataset(Dataset):
             "nb_obs": self.nb_obs[idx],
             "dt": self.metadata["dt"],
             "obs_noise": obs_noise,
+            "path_idx": self.path_idxs[idx],
         }
 
 
@@ -430,6 +432,7 @@ def CustomCollateFnGen(func_names=None):
                 time_ptr.append(counter)
 
         assert len(obs_idx) == observed_dates[:, 1:].sum()
+        path_idxs = [b["path_idx"][0] for b in batch]
         if masked:
             M = torch.tensor(np.array(M), dtype=torch.float32)
         res = {
@@ -445,7 +448,7 @@ def CustomCollateFnGen(func_names=None):
             "obs_noise": obs_noise,
             "M": M,
             "start_M": start_M,
-            "path_idx": batch[0]["idx"][0],
+            "path_idxs": path_idxs,
         }
         return res
 
