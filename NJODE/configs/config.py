@@ -3,12 +3,11 @@ author: William Andersson
 """
 
 from configs import (
-    configs_Ball2D,
+    configs_Ball2D_BM,
     configs_BM_weights,
     configs_FBM,
     configs_RBM,
     configs_Rectangle,
-    configs_Rectangle_vertex_approach,
 )
 from configs.dataset_configs import (
     DATA_DICTS,
@@ -33,7 +32,7 @@ param_list_Rectangle, overview_dict_Rectangle, plot_paths_Rectangle_dict = (
     param_list_Rectangle_vertex_approach,
     overview_dict_Rectangle_vertex_approach,
     plot_paths_Rectangle_vertex_approach_dict,
-) = configs_Rectangle_vertex_approach.get_Rectangle_vertex_approach_config()
+) = configs_Rectangle.get_Rectangle_vertex_approach_config()
 
 # Triangle BM weights vertex approach
 (
@@ -44,7 +43,7 @@ param_list_Rectangle, overview_dict_Rectangle, plot_paths_Rectangle_dict = (
 
 # Ball2D with NJODE
 param_list_Ball2D_BM, overview_dict_Ball2D_BM, plot_paths_Ball2D_BM_dict = (
-    configs_Ball2D.get_Ball2D_BM_config()
+    configs_Ball2D_BM.get_Ball2D_BM_config()
 )
 
 CONVEX_PEN_FUNCS = {
