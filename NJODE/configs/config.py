@@ -16,11 +16,14 @@ from configs.dataset_configs import (
     zero_pen_func,
 )
 
+# TODO use RNN with no residuals, as discussed
+
 # FBM
 param_list_FBM1, overview_dict_FBM1, plot_paths_FBM_dict = configs_FBM.get_FBM1_config()
 
 # RBM
 param_list_RBM, overview_dict_RBM, plot_paths_RBM_dict = configs_RBM.get_RBM_config()
+
 
 # Rectangle
 param_list_Rectangle, overview_dict_Rectangle, plot_paths_Rectangle_dict = (
@@ -52,6 +55,6 @@ CONVEX_PEN_FUNCS = {
         DATA_DICTS["RBM_1_dict"]["lb"],
         DATA_DICTS["RBM_1_dict"]["ub"],
     ),
-    "Rectangle_1_dict": lambda Y: rect_pen_func(Y, DATA_DICTS["RBM_1_dict"]),
+    "Rectangle_1_dict": lambda Y: rect_pen_func(Y, DATA_DICTS["Rectangle_1_dict"]),
     "Triangle_BM_weights_1_dict": zero_pen_func,
 }

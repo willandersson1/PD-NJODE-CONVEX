@@ -412,24 +412,24 @@ class ReflectedBM(StockModel):
 
         # If wasn't able to project with the above logic, need to expand approximation
         raise Exception(
-            f"maz_z of {self.max_z} not enough to approximate projection of {x}"
+            f"maz_z of {self.max_z} not enough to approximate projection of {x}. Increase it!"
         )
 
     def _generate_approx_paths(self, x0):
         # Generate approximate path by manually "projecting" onto the boundaries. This is technically
         # an approximation since it has positive probability of landing on the boundary.
         spot_paths = np.zeros((self.nb_paths, self.dimensions, self.nb_steps + 1))
+        spot_paths[:, :, 0] = x0
         for i in range(self.nb_paths):
             for j in range(self.dimensions):
                 raw_paths = generate_BM_drift_diffusion(
                     1, 1, self.nb_steps, self.dt, [self.mu], [self.sigma]
                 )
-
+                shifted_paths = raw_paths + x0
                 projected_paths = np.array(
-                    [self._proj_approximately(x) for x in raw_paths[0, 0]]
+                    [self._proj_approximately(x) for x in shifted_paths[0, 0]]
                 )
                 spot_paths[i, j, 1:] = projected_paths
-                spot_paths[i, j, :] += x0
 
         return spot_paths
 
@@ -574,7 +574,6 @@ class Rectangle(StockModel):
         self,
         width,
         length,
-        base_point,
         mu_x,
         sigma_x,
         mu_y,
@@ -615,14 +614,13 @@ class Rectangle(StockModel):
         self.use_numerical_cond_exp = use_numerical_cond_exp
         self.masked = True
         self.track_obs_cov_mat = False
-        self.base_point = base_point
 
         self.rbm_x = ReflectedBM(
             mu=mu_x,
             sigma=sigma_x,
             max_terms=max_terms,
-            lb=self.base_point[0],
-            ub=self.base_point[0] + width,
+            lb=0,
+            ub=width,
             max_z=max_z,
             nb_paths=nb_paths,
             dimension=dimension,
@@ -636,8 +634,8 @@ class Rectangle(StockModel):
             mu=mu_y,
             sigma=sigma_y,
             max_terms=max_terms,
-            lb=self.base_point[1],
-            ub=self.base_point[1] + length,
+            lb=0,
+            ub=0 + length,
             max_z=max_z,
             nb_paths=nb_paths,
             dimension=dimension,
