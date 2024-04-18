@@ -418,8 +418,7 @@ class ReflectedBM(StockModel):
     def _generate_approx_paths(self, x0):
         # Generate approximate path by manually "projecting" onto the boundaries. This is technically
         # an approximation since it has positive probability of landing on the boundary.
-        spot_paths = np.empty((self.nb_paths, self.dimensions, self.nb_steps + 1))
-        spot_paths[:, :, 0] = x0
+        spot_paths = np.zeros((self.nb_paths, self.dimensions, self.nb_steps + 1))
         for i in range(self.nb_paths):
             for j in range(self.dimensions):
                 raw_paths = generate_BM_drift_diffusion(
@@ -430,6 +429,7 @@ class ReflectedBM(StockModel):
                     [self._proj_approximately(x) for x in raw_paths[0, 0]]
                 )
                 spot_paths[i, j, 1:] = projected_paths
+                spot_paths[i, j, :] += x0
 
         return spot_paths
 
@@ -913,6 +913,7 @@ class BMWeights(StockModel):
 
 
 def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma, x0=None):
+    # Here x0 is a _sample_
     assert dim == len(mu) == len(sigma)
     assert all(x >= 0 for x in mu) and all(x > 0 for x in sigma)
     assert dt > 0
