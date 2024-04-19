@@ -648,6 +648,7 @@ class Rectangle(StockModel):
         return self.rbm_x._in_shape(x[0]) and self.rbm_y._in_shape(x[1])
 
     def plot_first_path(self, paths_x, paths_y):
+        # TODO eventually remove this
         path_x = paths_x[0]
         path_y = paths_y[0]
         xs = np.arange(path_x.shape[1])
@@ -812,7 +813,7 @@ class BMWeights(StockModel):
         self.masked = False
         self.track_obs_cov_mat = False
 
-        if len(vertices) > 2:
+        if len(vertices) > 4:
             from scipy.spatial import ConvexHull
 
             hull = ConvexHull(vertices, incremental=False)

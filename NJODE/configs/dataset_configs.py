@@ -161,6 +161,16 @@ TEST_DATA_DICTS = {
         "width": 5,
         "length": 1,
     },
+    "BM_WEIGHTS_RECTANGLE_STANDARD": {
+        "model_name": "BMWeights",
+        "should_compute_approx_cond_exp_paths": True,
+        "vertices": [[0, 0], [1, 0], [1, 1], [0, 1]],
+        "nb_paths": 6,
+        "nb_steps": 100,
+        "maturity": 1.0,
+        "dimension": 2,
+        "obs_perc": 0.1,
+    },
     "BM_WEIGHTS_SIMPLEX2D": {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
@@ -178,7 +188,7 @@ TEST_DATA_DICTS = {
         "nb_paths": 6,
         "nb_steps": 100,
         "maturity": 1.0,
-        "dimension": 2,
+        "dimension": 3,
         "obs_perc": 0.1,
     },
     "BALL2D_STANDARD": {
@@ -241,34 +251,63 @@ def opt_rect_proj(rect_data_dict_name):
     return optimal_proj
 
 
-def opt_simplex_proj(y):
+def opt_simplex_proj(Y):
     # TODO don't forget to cite them in my thesis
     # Algorithm by Yunmei Chen and Xiaojing Ye (2011), and their
     # implementation at https://mathworks.com/matlabcentral/fileexchange/30332
-    # Sort descending
-    sorted = copy.deepcopy(y)
-    sorted.sort()
-    sorted = np.flip(sorted)
-    n = len(y)
-    tmpsum = 0
-    for i in range(0, n - 1):
-        tmpsum += sorted[i]
-        tmax = (tmpsum - 1) / (i + 1)
-        if tmax >= sorted[i + 1]:
-            break
-    else:
-        tmax = (tmpsum + y[n - 1] - 1) / n
+    to_sub = torch.zeros(len(Y))
+    for k, y in enumerate(Y):
+        y = y.clone().detach().numpy()
+        # Sort descending
+        sorted = copy.deepcopy(y)
+        sorted.sort()
+        sorted = np.flip(sorted)
+        n = len(y)
+        tmpsum = 0
+        for i in range(0, n - 1):
+            tmpsum += sorted[i]
+            tmax = (tmpsum - 1) / (i + 1)
+            if tmax >= sorted[i + 1]:
+                break
+        else:
+            tmax = (tmpsum + y[n - 1] - 1) / n
 
-    res = np.clip(y - tmax, 0, None)
+        to_sub[k] = tmax
+
+    subtracted = Y - to_sub.unsqueeze(1)
+    res = torch.clamp(subtracted, torch.zeros_like(Y))
+    return res
+
+    # sorted = copy.deepcopy(y)
+    # sorted.sort()
+    # sorted = np.flip(sorted)
+    # n = len(y)
+    # tmpsum = 0
+    # for i in range(0, n - 1):
+    #     tmpsum += sorted[i]
+    #     tmax = (tmpsum - 1) / (i + 1)
+    #     if tmax >= sorted[i + 1]:
+    #         break
+    # else:
+    #     tmax = (tmpsum + y[n - 1] - 1) / n
+
+    # res = np.clip(y - tmax, 0, None)
     return res
 
 
 OPTIMAL_PROJECTION_FUNCS = {
     "RBM_1_dict": opt_RBM_proj("RBM_1_dict"),
+    "RBM_STANDARD": opt_RBM_proj("RBM_STANDARD"),
+    "RBM_MORE_BOUNCES": opt_RBM_proj("RBM_MORE_BOUNCES"),
     "Rectangle_1_dict": opt_rect_proj("Rectangle_1_dict"),
+    "RECTANGLE_STANDARD": opt_rect_proj("RECTANGLE_STANDARD"),
+    "RECTANGLE_WIDER_WITH_MU": opt_rect_proj("RECTANGLE_WIDER_WITH_MU"),
+    "BM_WEIGHTS_RECTANGLE_STANDARD": opt_rect_proj("RECTANGLE_STANDARD"),
     "BM_WEIGHTS_SIMPLEX2D": opt_simplex_proj,
     "BM_WEIGHTS_SIMPLEX3D": opt_simplex_proj,
     "Ball2D_BM_1_dict": opt_Ball2D_proj("Ball2D_BM_1_dict"),
+    "BALL2D_STANDARD": opt_Ball2D_proj("BALL2D_STANDARD"),
+    "BALL2D_LARGE": opt_Ball2D_proj("BALL2D_LARGE"),
 }
 
 
@@ -289,7 +328,12 @@ def easy_vertices(dataset_name):
 
 VERTEX_APPROACH_VERTICES = {
     "Rectangle_1_dict": get_ccw_rectangle_vertices("Rectangle_1_dict"),
+    "RECTANGLE_STANDARD": get_ccw_rectangle_vertices("RECTANGLE_STANDARD"),
+    "RECTANGLE_WIDER_WITH_MU": get_ccw_rectangle_vertices("RECTANGLE_WIDER_WITH_MU"),
     "Triangle_BM_weights_1_dict": easy_vertices("Triangle_BM_weights_1_dict"),
+    "BM_WEIGHTS_RECTANGLE_STANDARD": easy_vertices("BM_WEIGHTS_RECTANGLE_STANDARD"),
+    "BM_WEIGHTS_SIMPLEX2D": easy_vertices("BM_WEIGHTS_SIMPLEX2D"),
+    "BM_WEIGHTS_SIMPLEX3D": easy_vertices("BM_WEIGHTS_SIMPLEX3D"),
 }
 
 
@@ -303,6 +347,17 @@ def standard_2_norm_for_lb_ub(Y, lb, ub):
             mask[i] = 0
 
     return mask * closest
+
+
+def RBM_pen_func(data_dict):
+    def pen(Y):
+        return standard_2_norm_for_lb_ub(
+            Y,
+            data_dict["lb"],
+            data_dict["ub"],
+        )
+
+    return pen
 
 
 def rect_pen_func(Y, data_dict):
