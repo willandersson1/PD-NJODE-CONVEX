@@ -12,9 +12,9 @@ def get_Rectangle_config():
     Rectangle_models_path = "{}saved_models_Rectangle/".format(data_path)
     param_list_Rectangle = []
     param_dict_Rectangle_1 = {
-        "epochs": [3],
+        "epochs": [50],
         "batch_size": [200],
-        "save_every": [1],
+        "save_every": [5],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -24,7 +24,8 @@ def get_Rectangle_config():
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
-        "use_rnn": [False],
+        "use_rnn": [True],
+        "residual_enc_dec": [False],
         "func_appl_X": [[]],
         "solver": ["euler"],
         "weight": [0.5],
@@ -35,6 +36,7 @@ def get_Rectangle_config():
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [Rectangle_models_path],
         "other_model": ["optimal_projection"],
+        "lmbda": [1],
     }
     param_list_Rectangle += get_parameter_array(param_dict=param_dict_Rectangle_1)
 
@@ -55,7 +57,7 @@ def get_Rectangle_vertex_approach_config():
     )
     param_list_Rectangle_vertex_approach = []
     param_dict_Rectangle_1_vertex_approach = {
-        "epochs": [3],
+        "epochs": [1],
         "batch_size": [200],
         "save_every": [1],
         "learning_rate": [0.001],
@@ -67,7 +69,8 @@ def get_Rectangle_vertex_approach_config():
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
-        "use_rnn": [False],
+        "use_rnn": [True],
+        "residual_enc_dec": [False],
         "func_appl_X": [[]],
         "solver": ["euler"],
         "weight": [0.5],
@@ -91,7 +94,7 @@ def get_Rectangle_vertex_approach_config():
     )
 
     return (
-        param_dict_Rectangle_1_vertex_approach,
+        param_list_Rectangle_vertex_approach,
         overview_dict_Rectangle_vertex_approach,
         plot_paths_Rectangle_vertex_approach_dict,
     )

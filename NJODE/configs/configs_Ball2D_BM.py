@@ -13,7 +13,7 @@ def get_Ball2D_BM_config():
 
     param_list_Ball2D_BM = []
     param_dict_Ball2D_BM_1 = {
-        "epochs": [3],
+        "epochs": [1],
         "batch_size": [200],
         "save_every": [1],
         "learning_rate": [0.001],
@@ -25,7 +25,8 @@ def get_Ball2D_BM_config():
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
-        "use_rnn": [False],
+        "use_rnn": [True],
+        "residual_enc_dec": [False],
         "func_appl_X": [[]],
         "solver": ["euler"],
         "weight": [0.5],

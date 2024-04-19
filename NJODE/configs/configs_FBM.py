@@ -8,6 +8,7 @@ from configs.config_constants import (
 from configs.config_utils import data_path, get_parameter_array
 
 
+# TODO eventually get rid of all traces of FBM
 def get_FBM1_config():
     FBM_models_path = "{}saved_models_FBM/".format(data_path)
     param_list_FBM1 = []
@@ -24,7 +25,8 @@ def get_FBM1_config():
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
-        "use_rnn": [False],
+        "use_rnn": [True],
+        "residual_enc_dec": [False],
         "func_appl_X": [[]],
         "solver": ["euler"],
         "weight": [0.5],

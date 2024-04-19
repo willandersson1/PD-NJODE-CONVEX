@@ -18,7 +18,6 @@ from scipy.stats import norm
 from tqdm import tqdm
 
 
-# CLASSES
 class StockModel:
     """
     mother class for all stock models defining the variables and methods shared
@@ -813,12 +812,13 @@ class BMWeights(StockModel):
         self.masked = False
         self.track_obs_cov_mat = False
 
-        from scipy.spatial import ConvexHull
+        if len(vertices) > 2:
+            from scipy.spatial import ConvexHull
 
-        hull = ConvexHull(vertices, incremental=False)
-        assert len(hull.vertices) == len(
-            vertices
-        ), "Some of the points you gave aren't on the convex hull."
+            hull = ConvexHull(vertices, incremental=False)
+            assert len(hull.vertices) == len(
+                vertices
+            ), "Some of the points you gave aren't on the convex hull."
 
     def weights_to_point(self, w):
         return np.matmul(w, self.vertices)
@@ -961,8 +961,6 @@ def compute_loss(
     return outer / batch_size
 
 
-# ==============================================================================
-# dict for the supported stock models to get them from their name
 DATASETS = {
     "FBM": FracBM,
     "RBM": ReflectedBM,
@@ -970,7 +968,6 @@ DATASETS = {
     "BMWeights": BMWeights,
     "Ball2D_BM": Ball2D_BM,
 }
-# ==============================================================================
 
 
 hyperparam_test_stock_models = {
@@ -989,6 +986,7 @@ hyperparam_test_stock_models = {
 
 
 def draw_stock_model(stock_model_name):
+    # TODO need this? and the hyperparams?
     hyperparam_test_stock_models["model_name"] = stock_model_name
     stockmodel = DATASETS[stock_model_name](**hyperparam_test_stock_models)
     stock_paths, dt = stockmodel.generate_paths()

@@ -1,5 +1,6 @@
-from math import sqrt
+import copy
 
+import numpy as np
 import torch
 
 
@@ -57,7 +58,7 @@ BASE_DATA_DICTS = {
     "Triangle_BM_weights_1_dict": {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
-        "vertices": [[0, 0], [1, 0], [0.5, sqrt(3) / 2]],
+        "vertices": [[1, 0], [0, 1]],
         "nb_paths": 6,
         "nb_steps": 100,
         "maturity": 1.0,
@@ -163,7 +164,17 @@ TEST_DATA_DICTS = {
     "BM_WEIGHTS_SIMPLEX2D": {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
-        "vertices": [[0, 0], [1, 0], [0.5, sqrt(3) / 2]],
+        "vertices": [[1, 0], [0, 1]],
+        "nb_paths": 6,
+        "nb_steps": 100,
+        "maturity": 1.0,
+        "dimension": 2,
+        "obs_perc": 0.1,
+    },
+    "BM_WEIGHTS_SIMPLEX3D": {
+        "model_name": "BMWeights",
+        "should_compute_approx_cond_exp_paths": True,
+        "vertices": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
         "nb_paths": 6,
         "nb_steps": 100,
         "maturity": 1.0,
@@ -171,15 +182,13 @@ TEST_DATA_DICTS = {
         "obs_perc": 0.1,
     },
     "BALL2D_STANDARD": {
-        {
-            "model_name": "Ball2D_BM",
-            "max_radius": 10,
-            "nb_paths": 6,
-            "nb_steps": 100,
-            "maturity": 1.0,
-            "dimension": 2,
-            "obs_perc": 0.1,
-        },
+        "model_name": "Ball2D_BM",
+        "max_radius": 10,
+        "nb_paths": 6,
+        "nb_steps": 100,
+        "maturity": 1.0,
+        "dimension": 2,
+        "obs_perc": 0.1,
     },
     "BALL2D_LARGE": {
         "model_name": "Ball2D_BM",
@@ -232,9 +241,33 @@ def opt_rect_proj(rect_data_dict_name):
     return optimal_proj
 
 
+def opt_simplex_proj(y):
+    # TODO don't forget to cite them in my thesis
+    # Algorithm by Yunmei Chen and Xiaojing Ye (2011), and their
+    # implementation at https://mathworks.com/matlabcentral/fileexchange/30332
+    # Sort descending
+    sorted = copy.deepcopy(y)
+    sorted.sort()
+    sorted = np.flip(sorted)
+    n = len(y)
+    tmpsum = 0
+    for i in range(0, n - 1):
+        tmpsum += sorted[i]
+        tmax = (tmpsum - 1) / (i + 1)
+        if tmax >= sorted[i + 1]:
+            break
+    else:
+        tmax = (tmpsum + y[n - 1] - 1) / n
+
+    res = np.clip(y - tmax, 0, None)
+    return res
+
+
 OPTIMAL_PROJECTION_FUNCS = {
     "RBM_1_dict": opt_RBM_proj("RBM_1_dict"),
     "Rectangle_1_dict": opt_rect_proj("Rectangle_1_dict"),
+    "BM_WEIGHTS_SIMPLEX2D": opt_simplex_proj,
+    "BM_WEIGHTS_SIMPLEX3D": opt_simplex_proj,
     "Ball2D_BM_1_dict": opt_Ball2D_proj("Ball2D_BM_1_dict"),
 }
 

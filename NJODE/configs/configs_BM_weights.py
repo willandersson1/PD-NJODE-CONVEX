@@ -16,9 +16,9 @@ def get_Triangle_BM_weights_config():
     )
     param_list_Triangle_BM_weights = []
     param_dict_Triangle_BM_weights_1 = {
-        "epochs": [150],
+        "epochs": [3],
         "batch_size": [200],
-        "save_every": [10],
+        "save_every": [1],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -28,7 +28,8 @@ def get_Triangle_BM_weights_config():
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
-        "use_rnn": [False],
+        "use_rnn": [True],
+        "residual_enc_dec": [False],
         "func_appl_X": [[]],
         "solver": ["euler"],
         "weight": [0.5],
