@@ -363,5 +363,26 @@ def rect_pen_func(Y, data_dict):
     return torch.norm(Y - projected, 2, dim=1)
 
 
+def simplex_pen_func(Y):
+    proj = opt_simplex_proj(Y)
+    res = torch.norm(proj - Y, 2, dim=1)
+    return res
+
+
+def ball2D_pen_func(data_dict):
+    R = data_dict["max_radius"]
+
+    def pen(Y):
+        compare = (R**2) * torch.ones(len(Y))
+        dist = torch.norm(Y, 2, dim=1) - compare
+
+        # Penalise only if outside
+        res = torch.clamp(dist, torch.zeros_like(Y))
+
+        return res
+
+    return pen
+
+
 def zero_pen_func(Y):
     return torch.norm(Y - Y, 2, dim=1)

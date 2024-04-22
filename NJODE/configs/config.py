@@ -12,10 +12,11 @@ from configs import (
 from configs.dataset_configs import (
     DATA_DICTS,
     RBM_pen_func,
+    ball2D_pen_func,
     rect_pen_func,
+    simplex_pen_func,
     zero_pen_func,
 )
-
 
 # FBM
 param_list_FBM1, overview_dict_FBM1, plot_paths_FBM_dict = configs_FBM.get_FBM1_config()
@@ -165,8 +166,6 @@ param_list_Ball2D_BM, overview_dict_Ball2D_BM, plot_paths_Ball2D_BM_dict = (
 
 
 # TODO make these nicer and more consistent
-# TODO simplex pen funcs missing
-# TODO Ball pen funcs missing (will just be taking the norm)
 CONVEX_PEN_FUNCS = {
     "RBM_1_dict": RBM_pen_func(DATA_DICTS["RBM_1_dict"]),
     "RBM_STANDARD": RBM_pen_func(DATA_DICTS["RBM_STANDARD"]),
@@ -180,8 +179,8 @@ CONVEX_PEN_FUNCS = {
     "BM_WEIGHTS_RECTANGLE_STANDARD": lambda Y: rect_pen_func(
         Y, DATA_DICTS["RECTANGLE_STANDARD"]
     ),
-    "BM_WEIGHTS_SIMPLEX2D": zero_pen_func,
-    "BM_WEIGHTS_SIMPLEX3D": zero_pen_func,
-    "BALL2D_STANDARD": zero_pen_func,
-    "BALL2D_LARGE": zero_pen_func,
+    "BM_WEIGHTS_SIMPLEX2D": lambda Y: simplex_pen_func(Y),
+    "BM_WEIGHTS_SIMPLEX3D": lambda Y: simplex_pen_func(Y),
+    "BALL2D_STANDARD": ball2D_pen_func(DATA_DICTS["BALL2D_STANDARD"]),
+    "BALL2D_LARGE": ball2D_pen_func(DATA_DICTS["BALL2D_LARGE"]),
 }
