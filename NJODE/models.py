@@ -1649,6 +1649,7 @@ class NJODE_vertex_approach(NJODE):
         :return: torch.tensor (hidden state at final time), torch.tensor (loss),
                     if wanted the paths of t (np.array) and h, y (torch.tensors)
         """
+        # TODO is this not now the same as NJODE?
         if which_loss is None:
             which_loss = self.which_loss
 

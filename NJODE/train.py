@@ -607,7 +607,7 @@ def train(
             resume_training = False
     if not resume_training:
         initial_print += "\ninitiate new model ..."
-        df_metric = pd.DataFrame(columns=metr_columns)
+        df_metric = pd.DataFrame(columns=metr_columns, dtype=object)
 
     # ---------- plot only option ------------
     if "plot_only" in options and options["plot_only"]:
@@ -920,7 +920,7 @@ def train(
                     )
                 )
             print("save model ...")
-            df_m_app = pd.DataFrame(data=metric_app, columns=metr_columns)
+            df_m_app = pd.DataFrame(data=metric_app, columns=metr_columns, dtype=object)
             df_metric = pd.concat([df_metric, df_m_app], ignore_index=True)
             df_metric.to_csv(model_metric_file)
             models.save_checkpoint(model, optimizer, model_path_save_last, model.epoch)
@@ -933,7 +933,7 @@ def train(
                     best_eval_loss, loss_val, model.epoch
                 )
             )
-            df_m_app = pd.DataFrame(data=metric_app, columns=metr_columns)
+            df_m_app = pd.DataFrame(data=metric_app, columns=metr_columns, dtype=object)
             df_metric = pd.concat([df_metric, df_m_app], ignore_index=True)
             df_metric.to_csv(model_metric_file)
             models.save_checkpoint(model, optimizer, model_path_save_last, model.epoch)
@@ -1337,6 +1337,6 @@ def plot_one_path_with_pred(
 
         save = os.path.join(save_path, filename.format(i))
         plt.savefig(save, **save_extras)
-        plt.close()
+        plt.close('all')
 
     return opt_loss

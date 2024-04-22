@@ -16,7 +16,6 @@ from configs.dataset_configs import (
     zero_pen_func,
 )
 
-# TODO use RNN with no residuals, as discussed
 
 # FBM
 param_list_FBM1, overview_dict_FBM1, plot_paths_FBM_dict = configs_FBM.get_FBM1_config()

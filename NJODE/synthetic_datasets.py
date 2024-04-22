@@ -752,7 +752,7 @@ class Ball2D_BM(StockModel):
         def get_instance(sample):
             return np.abs(np.tanh(sample + np.arctanh(r_s)))
 
-        N = 100
+        N = 30
         res = 0
         for _ in range(N):
             sample = np.random.normal(0, sqrt(interval))
@@ -857,7 +857,7 @@ class BMWeights(StockModel):
             return cexpect
 
         # Now do Monte Carlo
-        N = 100
+        N = 30
         weight_cond_exp = np.zeros(n)
         for _ in range(N):
             increment_sample = np.random.normal(0, sqrt(t - s), size=n)

@@ -95,7 +95,7 @@ TEST_DATA_DICTS = {
     },
     "RBM_STANDARD": {
         "model_name": "RBM",
-        "nb_paths": 6,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 1,
@@ -111,7 +111,7 @@ TEST_DATA_DICTS = {
     },
     "RBM_MORE_BOUNCES": {
         "model_name": "RBM",
-        "nb_paths": 6,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 1,
@@ -165,7 +165,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[0, 0], [1, 0], [1, 1], [0, 1]],
-        "nb_paths": 6,
+        "nb_paths": 60,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -185,7 +185,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
-        "nb_paths": 6,
+        "nb_paths": 100,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 3,
@@ -193,8 +193,8 @@ TEST_DATA_DICTS = {
     },
     "BALL2D_STANDARD": {
         "model_name": "Ball2D_BM",
-        "max_radius": 10,
-        "nb_paths": 6,
+        "max_radius": 1,
+        "nb_paths": 100,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -203,7 +203,7 @@ TEST_DATA_DICTS = {
     "BALL2D_LARGE": {
         "model_name": "Ball2D_BM",
         "max_radius": 10,
-        "nb_paths": 6,
+        "nb_paths": 100,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -276,22 +276,6 @@ def opt_simplex_proj(Y):
 
     subtracted = Y - to_sub.unsqueeze(1)
     res = torch.clamp(subtracted, torch.zeros_like(Y))
-    return res
-
-    # sorted = copy.deepcopy(y)
-    # sorted.sort()
-    # sorted = np.flip(sorted)
-    # n = len(y)
-    # tmpsum = 0
-    # for i in range(0, n - 1):
-    #     tmpsum += sorted[i]
-    #     tmax = (tmpsum - 1) / (i + 1)
-    #     if tmax >= sorted[i + 1]:
-    #         break
-    # else:
-    #     tmax = (tmpsum + y[n - 1] - 1) / n
-
-    # res = np.clip(y - tmax, 0, None)
     return res
 
 

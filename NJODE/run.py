@@ -148,7 +148,7 @@ def parallel_training(
     model_overview_file_name = "{}model_overview.csv".format(saved_models_path)
     config_utils.makedirs(saved_models_path)
     if not os.path.exists(model_overview_file_name):
-        df_overview = pd.DataFrame(data=None, columns=["id", "description"])
+        df_overview = pd.DataFrame(data=None, columns=["id", "description"], dtype=object)
         max_id = 0
     else:
         df_overview = pd.read_csv(model_overview_file_name, index_col=0)
