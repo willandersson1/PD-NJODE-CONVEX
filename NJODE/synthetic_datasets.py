@@ -355,7 +355,6 @@ class ReflectedBM(StockModel):
         max_terms,
         lb,
         ub,
-        max_z,
         nb_paths,
         dimension,
         nb_steps,
@@ -372,7 +371,6 @@ class ReflectedBM(StockModel):
         self.max_terms = max_terms
         self.lb = lb
         self.ub = ub
-        self.max_z = max_z
         self.nb_paths = nb_paths
         self.dimension = dimension
         self.dimensions = 1
@@ -393,30 +391,7 @@ class ReflectedBM(StockModel):
     def _in_shape(self, x):
         return self.lb < x < self.ub
 
-    def _proj_approximately(self, x):
-        # NOTE this isn't really a projection. We're trying to figure out how often it bounces
-        if self._in_shape(x):
-            return x
-
-        for z in range(-self.max_z, self.max_z + 1):
-            k = 2 * z + 1
-            l, u = self._get_bounds(self.lb, self.ub, k)
-            if l <= x <= u:
-                return self.ub - (x - (self.lb + k * (self.ub - self.lb)))
-
-            k = 2 * z
-            l, u = self._get_bounds(self.lb, self.ub, k)
-            if l <= x <= u:
-                return self.lb + (x - (self.lb + k * (self.ub - self.lb)))
-
-        # If wasn't able to project with the above logic, need to expand approximation
-        raise Exception(
-            f"maz_z of {self.max_z} not enough to approximate projection of {x}. Increase it!"
-        )
-
     def _generate_approx_paths(self, x0):
-        # Generate approximate path by manually "projecting" onto the boundaries. This is technically
-        # an approximation since it has positive probability of landing on the boundary.
         spot_paths = np.zeros((self.nb_paths, self.dimensions, self.nb_steps + 1))
         spot_paths[:, :, 0] = x0
         for i in range(self.nb_paths):
@@ -425,11 +400,20 @@ class ReflectedBM(StockModel):
                     1, 1, self.nb_steps, self.dt, [self.mu], [self.sigma]
                 )
                 shifted_paths = raw_paths + x0
-                projected_paths = np.array(
-                    [self._proj_approximately(x) for x in shifted_paths[0, 0]]
-                )
-                spot_paths[i, j, 1:] = projected_paths
 
+                # Deal with boundary collisions. Assume at most one collision per time step
+                for k in range(len(shifted_paths[0, 0])):
+                    x = shifted_paths[0, 0, k]
+                    if x < self.lb:
+                        dist = self.lb - x
+                        shifted_paths[0, 0, k:] += dist
+                    elif x > self.ub:
+                        dist = x - self.ub
+                        shifted_paths[0, 0, k:] -= dist
+
+                spot_paths[i, j, 1:] = shifted_paths[0][0]
+
+        assert np.all(spot_paths >= self.lb) and np.all(spot_paths <= self.ub)
         return spot_paths
 
     def _generate_true_paths(self, x0):
@@ -578,7 +562,6 @@ class Rectangle(StockModel):
         mu_y,
         sigma_y,
         max_terms,
-        max_z,
         nb_paths,
         dimension,
         nb_steps,
@@ -599,7 +582,6 @@ class Rectangle(StockModel):
         self.mu_y = mu_y
         self.sigma_y = sigma_y
         self.max_terms = max_terms
-        self.max_z = max_z
         self.nb_paths = nb_paths
         self.dimension = dimension
         self.dimensions = 1
@@ -620,7 +602,6 @@ class Rectangle(StockModel):
             max_terms=max_terms,
             lb=0,
             ub=width,
-            max_z=max_z,
             nb_paths=nb_paths,
             dimension=dimension,
             nb_steps=nb_steps,
@@ -635,7 +616,6 @@ class Rectangle(StockModel):
             max_terms=max_terms,
             lb=0,
             ub=0 + length,
-            max_z=max_z,
             nb_paths=nb_paths,
             dimension=dimension,
             nb_steps=nb_steps,
@@ -914,7 +894,7 @@ class BMWeights(StockModel):
 def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma, x0=None):
     # Here x0 is a _sample_
     assert dim == len(mu) == len(sigma)
-    assert all(x >= 0 for x in mu) and all(x > 0 for x in sigma)
+    assert all(x > 0 for x in sigma)
     assert dt > 0
 
     sampled_numbers = np.random.standard_normal((nb_paths, dim, nb_steps))
