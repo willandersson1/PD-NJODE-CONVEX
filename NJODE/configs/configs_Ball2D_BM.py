@@ -55,15 +55,15 @@ def get_BALL2D_STANDARD_NJODE_config():
 
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [10],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -93,15 +93,15 @@ def get_BALL2D_STANDARD_OPTIMAL_PROJ_config():
 
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [10],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -133,15 +133,15 @@ def get_BALL2D_LARGE_NJODE_config():
 
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [10],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -171,15 +171,15 @@ def get_BALL2D_LARGE_OPTIMAL_PROJ_config():
 
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [10],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],

@@ -37,7 +37,7 @@ def get_Triangle_BM_weights_config():
         "data_dict": ["Triangle_BM_weights_1_dict"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [Triangle_BM_weights_models_path],
         "other_model": ["vertex_approach"],
     }
@@ -66,15 +66,15 @@ def get_BM_WEIGHTS_RECTANGLE_STANDARD_NJODE_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -87,7 +87,7 @@ def get_BM_WEIGHTS_RECTANGLE_STANDARD_NJODE_config():
         "data_dict": ["BM_WEIGHTS_RECTANGLE_STANDARD"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
     }
     param_list += get_parameter_array(param_dict=param_dict)
@@ -111,15 +111,15 @@ def get_BM_WEIGHTS_RECTANGLE_STANDARD_OPTIMAL_PROJ_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -132,7 +132,7 @@ def get_BM_WEIGHTS_RECTANGLE_STANDARD_OPTIMAL_PROJ_config():
         "data_dict": ["BM_WEIGHTS_RECTANGLE_STANDARD"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
         "lmbda": [0],
@@ -160,15 +160,15 @@ def get_BM_WEIGHTS_RECTANGLE_STANDARD_VERTEX_APPROACH_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -181,7 +181,7 @@ def get_BM_WEIGHTS_RECTANGLE_STANDARD_VERTEX_APPROACH_config():
         "data_dict": ["BM_WEIGHTS_RECTANGLE_STANDARD"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["vertex_approach"],
     }
@@ -204,15 +204,15 @@ def get_BM_WEIGHTS_SIMPLEX2D_NJODE_config():
     models_path = "{}saved_models_BM_WEIGHTS_SIMPLEX2D_NJODE/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [500],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -225,7 +225,7 @@ def get_BM_WEIGHTS_SIMPLEX2D_NJODE_config():
         "data_dict": ["BM_WEIGHTS_SIMPLEX2D"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
     }
     param_list += get_parameter_array(param_dict=param_dict)
@@ -247,15 +247,15 @@ def get_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ_config():
     models_path = "{}saved_models_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [500],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -268,7 +268,7 @@ def get_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ_config():
         "data_dict": ["BM_WEIGHTS_SIMPLEX2D"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
         "lmbda": [0],
@@ -294,15 +294,15 @@ def get_BM_WEIGHTS_SIMPLEX2D_VERTEX_APPROACH_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [500],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -315,7 +315,7 @@ def get_BM_WEIGHTS_SIMPLEX2D_VERTEX_APPROACH_config():
         "data_dict": ["BM_WEIGHTS_SIMPLEX2D"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["vertex_approach"],
     }
@@ -338,15 +338,15 @@ def get_BM_WEIGHTS_SIMPLEX3D_NJODE_config():
     models_path = "{}saved_models_BM_WEIGHTS_SIMPLEX3D_NJODE/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [100],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [10],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -359,7 +359,7 @@ def get_BM_WEIGHTS_SIMPLEX3D_NJODE_config():
         "data_dict": ["BM_WEIGHTS_SIMPLEX3D"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
     }
     param_list += get_parameter_array(param_dict=param_dict)
@@ -381,15 +381,15 @@ def get_BM_WEIGHTS_SIMPLEX3D_OPTIMAL_PROJ_config():
     models_path = "{}saved_models_BM_WEIGHTS_SIMPLEX3D_OPTIMAL_PROJ/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [500],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -402,7 +402,7 @@ def get_BM_WEIGHTS_SIMPLEX3D_OPTIMAL_PROJ_config():
         "data_dict": ["BM_WEIGHTS_SIMPLEX3D"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
         "lmbda": [0],
@@ -428,15 +428,15 @@ def get_BM_WEIGHTS_SIMPLEX3D_VERTEX_APPROACH_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [500],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [25],
-        "learning_rate": [0.001, 0.01, 0.1],
+        "save_every": [20],
+        "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
         "hidden_size": [10],
         "bias": [True],
-        "dropout_rate": [0.1, 0.2],
+        "dropout_rate": [0.1],
         "ode_nn": [DEFAULT_ODE_NN],
         "readout_nn": [DEFAULT_READOUT_NN],
         "enc_nn": [DEFAULT_ENC_NN],
@@ -449,7 +449,7 @@ def get_BM_WEIGHTS_SIMPLEX3D_VERTEX_APPROACH_config():
         "data_dict": ["BM_WEIGHTS_SIMPLEX3D"],
         "plot": [True],
         "evaluate": [True],
-        "paths_to_plot": [(0,1)],
+        "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["vertex_approach"],
     }

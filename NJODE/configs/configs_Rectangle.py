@@ -104,9 +104,9 @@ def get_RECTANGLE_STANDARD_NJODE_config():
     models_path = "{}saved_models_RECTANGLE_STANDARD_NJODE/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [50],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [5],
+        "save_every": [20],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -141,9 +141,9 @@ def get_RECTANGLE_STANDARD_OPTIMAL_PROJ_config():
     models_path = "{}saved_models_RECTANGLE_STANDARD_OPTIMAL_PROJ/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [50],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [5],
+        "save_every": [20],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -180,9 +180,9 @@ def get_RECTANGLE_STANDARD_VERTEX_APPROACH_config():
     models_path = "{}saved_models_RECTANGLE_STANDARD_VERTEX_APPROACH/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [50],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [5],
+        "save_every": [20],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -218,9 +218,9 @@ def get_RECTANGLE_WIDER_WITH_MU_NJODE_config():
     models_path = "{}saved_models_RECTANGLE_WIDER_WITH_MU_NJODE/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [50],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [5],
+        "save_every": [20],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -257,9 +257,9 @@ def get_RECTANGLE_WIDER_WITH_MU_OPTIMAL_PROJ_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [50],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [5],
+        "save_every": [20],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -298,9 +298,9 @@ def get_RECTANGLE_WIDER_WITH_MU_VERTEX_APPROACH_config():
     )
     param_list = []
     param_dict = {
-        "epochs": [50],
+        "epochs": [200],
         "batch_size": [200],
-        "save_every": [5],
+        "save_every": [20],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
