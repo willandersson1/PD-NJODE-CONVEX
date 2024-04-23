@@ -77,7 +77,7 @@ BASE_DATA_DICTS = {
 TEST_DATA_DICTS = {
     "RBM_DONT_HIT": {  # for comparison to normal NJODE, is it useful though?
         "model_name": "RBM",
-        "nb_paths": 6,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 1,
@@ -122,7 +122,7 @@ TEST_DATA_DICTS = {
     },
     "RECTANGLE_STANDARD": {
         "model_name": "Rectangle",
-        "nb_paths": 10,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -139,7 +139,7 @@ TEST_DATA_DICTS = {
     },
     "RECTANGLE_WIDER_WITH_MU": {
         "model_name": "Rectangle",
-        "nb_paths": 6,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -158,7 +158,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[0, 0], [1, 0], [1, 1], [0, 1]],
-        "nb_paths": 60,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -168,7 +168,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[1, 0], [0, 1]],
-        "nb_paths": 6,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -178,7 +178,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
-        "nb_paths": 100,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 3,
@@ -187,7 +187,7 @@ TEST_DATA_DICTS = {
     "BALL2D_STANDARD": {
         "model_name": "Ball2D_BM",
         "max_radius": 1,
-        "nb_paths": 100,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -196,7 +196,7 @@ TEST_DATA_DICTS = {
     "BALL2D_LARGE": {
         "model_name": "Ball2D_BM",
         "max_radius": 10,
-        "nb_paths": 100,
+        "nb_paths": 200,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
