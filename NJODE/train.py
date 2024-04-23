@@ -1159,8 +1159,8 @@ def plot_one_path_with_pred(
             angles = [
                 (None, None),  # standard view
                 (0, 0),  # (x, y)
-                (0, -90),  # (t, y)
                 (90, -90),  # (t, x)
+                (0, -90),  # (t, y)
             ]
 
             for ax in my_axs:
@@ -1282,8 +1282,8 @@ def plot_one_path_with_pred(
 
         plt.xlabel("$t$")
         if isinstance(stockmodel, ReflectedBM):
-            plt.axhline(y=stockmodel.lb)
-            plt.axhline(y=stockmodel.ub)
+            plt.axhline(y=stockmodel.lb, color="gray")
+            plt.axhline(y=stockmodel.ub, color="gray")
 
         elif isinstance(stockmodel, Rectangle):
             t0, t1 = path_t_true_X[0], path_t_true_X[-1]
@@ -1334,9 +1334,10 @@ def plot_one_path_with_pred(
                     color="gray",
                 )
                 ax.view_init(a1, a2)
+            my_axs[0].legend(loc=(1.04, 0))
 
         save = os.path.join(save_path, filename.format(i))
         plt.savefig(save, **save_extras)
-        plt.close('all')
+        plt.close("all")
 
     return opt_loss
