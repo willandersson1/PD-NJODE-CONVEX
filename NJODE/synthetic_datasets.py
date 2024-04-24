@@ -140,6 +140,7 @@ class StockModel:
                 path_t = [0.0]
                 path_y = [y]
 
+        last_obs_times = [0 for _ in range(batch_size)]
         for i, obs_time in tqdm(enumerate(times), total=len(times)):
             # the following is needed for the combined stock model datasets
             if obs_time > T + 1e-10 * delta_t:
@@ -152,7 +153,8 @@ class StockModel:
                     delta_t_ = delta_t
                 else:
                     delta_t_ = obs_time - current_time
-                kwargs["last_obs_time"] = 0 if i == 0 else times[i - 1]
+
+                kwargs["last_obs_times"] = last_obs_times
                 y = self.next_cond_exp(y, delta_t_, current_time, **kwargs)
                 current_time = current_time + delta_t_
 
@@ -165,8 +167,11 @@ class StockModel:
             # Select which batches are relevant
             start = time_ptr[i]
             end = time_ptr[i + 1]
-            X_obs = X[start:end]  # X_obs first dim is in [1, batch size]
+            X_obs = X[start:end]  # X_obs first dim is \in [1, batch size]
             i_obs = obs_idx[start:end]
+
+            for bid in i_obs:
+                last_obs_times[bid] = times[i]
 
             # add to observed, if we're tracking it
             if self.masked:
@@ -205,7 +210,7 @@ class StockModel:
                 delta_t_ = delta_t
             else:
                 delta_t_ = T - current_time
-            kwargs["last_obs_time"] = times[-1]
+            kwargs["last_obs_times"] = last_obs_times
             y = self.next_cond_exp(y, delta_t_, current_time, **kwargs)
             current_time = current_time + delta_t_
 
@@ -837,7 +842,7 @@ class BMWeights(StockModel):
             return cexpect
 
         # Now do Monte Carlo
-        N = 30
+        N = 60
         weight_cond_exp = np.zeros(n)
         for _ in range(N):
             increment_sample = np.random.normal(0, sqrt(t - s), size=n)
@@ -880,11 +885,11 @@ class BMWeights(StockModel):
 
     def next_cond_exp(self, y, delta_t, current_t, **kwargs):
         if self.should_compute_approx_cond_exp_paths:
-            s = kwargs["last_obs_time"]
             t = delta_t + current_t
             cond_exp = np.zeros_like(y)
             for i in range(len(y)):
                 path_idx = kwargs["path_idxs"][i]
+                s = kwargs["last_obs_times"][i]
                 cond_exp[i] = self.compute_cond_exp_approx(s, t, path_idx)
             return cond_exp
         else:
