@@ -245,12 +245,9 @@ def opt_rect_proj(rect_data_dict_name):
 
 
 def opt_simplex_proj(Y):
-    # TODO don't forget to cite them in my thesis
-    # Algorithm by Yunmei Chen and Xiaojing Ye (2011), and their
-    # implementation at https://mathworks.com/matlabcentral/fileexchange/30332
     to_sub = torch.zeros(len(Y))
-    for k, y in enumerate(Y):
-        y = y.clone().detach().numpy()
+    for k, y_ in enumerate(Y):
+        y = y_.clone().detach().numpy()
         # Sort descending
         sorted = copy.deepcopy(y)
         sorted.sort()
@@ -263,8 +260,7 @@ def opt_simplex_proj(Y):
             if tmax >= sorted[i + 1]:
                 break
         else:
-            tmax = (tmpsum + y[n - 1] - 1) / n
-
+            tmax = (tmpsum + sorted[n - 1] - 1) / n
         to_sub[k] = tmax
 
     subtracted = Y - to_sub.unsqueeze(1)
@@ -366,11 +362,11 @@ def ball2D_pen_func(data_dict):
     R = data_dict["max_radius"]
 
     def pen(Y):
-        compare = (R**2) * torch.ones(len(Y))
-        dist = torch.norm(Y, 2, dim=1) - compare
-
-        # Penalise only if outside
-        res = torch.clamp(dist, torch.zeros_like(Y))
+        res = torch.zeros(len(Y))
+        for i, y in enumerate(Y):
+            dist = torch.norm(y, 2)
+            if dist > R**2:
+                res[i] = dist
 
         return res
 

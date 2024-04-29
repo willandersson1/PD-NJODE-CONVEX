@@ -179,8 +179,8 @@ CONVEX_PEN_FUNCS = {
     "BM_WEIGHTS_RECTANGLE_STANDARD": lambda Y: rect_pen_func(
         Y, DATA_DICTS["RECTANGLE_STANDARD"]
     ),
-    "BM_WEIGHTS_SIMPLEX2D": lambda Y: simplex_pen_func(Y),
-    "BM_WEIGHTS_SIMPLEX3D": lambda Y: simplex_pen_func(Y),
+    "BM_WEIGHTS_SIMPLEX2D": simplex_pen_func,
+    "BM_WEIGHTS_SIMPLEX3D": simplex_pen_func,
     "BALL2D_STANDARD": ball2D_pen_func(DATA_DICTS["BALL2D_STANDARD"]),
     "BALL2D_LARGE": ball2D_pen_func(DATA_DICTS["BALL2D_LARGE"]),
 }
