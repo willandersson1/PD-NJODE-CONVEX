@@ -11,6 +11,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from configs.dataset_configs import get_rectangle_bounds
 from fbm import fgn
 from scipy.integrate import quad
 from scipy.special import softmax
@@ -601,12 +602,14 @@ class Rectangle(StockModel):
         self.masked = True
         self.track_obs_cov_mat = False
 
+        lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(width, length)
+
         self.rbm_x = ReflectedBM(
             mu=mu_x,
             sigma=sigma_x,
             max_terms=max_terms,
-            lb=0,
-            ub=width,
+            lb=lb_x,
+            ub=ub_x,
             nb_paths=nb_paths,
             dimension=dimension,
             nb_steps=nb_steps,
@@ -619,8 +622,8 @@ class Rectangle(StockModel):
             mu=mu_y,
             sigma=sigma_y,
             max_terms=max_terms,
-            lb=0,
-            ub=0 + length,
+            lb=lb_y,
+            ub=ub_y,
             nb_paths=nb_paths,
             dimension=dimension,
             nb_steps=nb_steps,
@@ -644,6 +647,8 @@ class Rectangle(StockModel):
         plt.close(fig)
 
     def generate_paths(self, x0=(None, None)):
+        if None in x0:
+            x0 = (0, 0)
         paths_x, dt_x = self.rbm_x.generate_paths(x0[0])
         paths_y, dt_y = self.rbm_y.generate_paths(x0[1])
         assert dt_x == dt_y

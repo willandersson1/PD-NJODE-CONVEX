@@ -7,6 +7,14 @@ import torch
 def merge_dicts(a, b):
     return {**a, **b}
 
+def get_rectangle_bounds(width, length, offset=(0, 0)):
+    o_x, o_y = offset
+    lb_x = o_x - width / 2
+    ub_x = lb_x + width
+    lb_y = o_y - length / 2
+    ub_y = lb_y + length
+
+    return lb_x, ub_x, lb_y, ub_y
 
 BASE_DATA_DICTS = {
     "FBM_1_dict": {
@@ -92,37 +100,37 @@ TEST_DATA_DICTS = {
     },
     "RBM_STANDARD": {
         "model_name": "RBM",
-        "nb_paths": 200,
+        "nb_paths": 1000,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 1,
         "obs_perc": 0.1,
         "mu": 0,
         "sigma": 1,
-        "lb": 0,
-        "ub": 1,
+        "lb": -0.5,
+        "ub": 0.5,
         "max_terms": 3,
         "use_approx_paths_technique": True,
         "use_numerical_cond_exp": True,
     },
     "RBM_MORE_BOUNCES": {
         "model_name": "RBM",
-        "nb_paths": 200,
+        "nb_paths": 1000,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 1,
         "obs_perc": 0.1,
         "mu": 0.4,
         "sigma": 1,
-        "lb": 0,
-        "ub": 2,
+        "lb": -1,
+        "ub": 1,
         "max_terms": 3,
         "use_approx_paths_technique": True,
         "use_numerical_cond_exp": True,
     },
     "RECTANGLE_STANDARD": {
         "model_name": "Rectangle",
-        "nb_paths": 200,
+        "nb_paths": 500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -139,7 +147,7 @@ TEST_DATA_DICTS = {
     },
     "RECTANGLE_WIDER_WITH_MU": {
         "model_name": "Rectangle",
-        "nb_paths": 200,
+        "nb_paths": 500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -157,8 +165,13 @@ TEST_DATA_DICTS = {
     "BM_WEIGHTS_RECTANGLE_STANDARD": {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
-        "vertices": [[0, 0], [1, 0], [1, 1], [0, 1]],
-        "nb_paths": 200,
+        "vertices": [
+            [get_rectangle_bounds(1, 1)[0], get_rectangle_bounds(1, 1)[2]],
+            [get_rectangle_bounds(1, 1)[1], get_rectangle_bounds(1, 1)[2]],
+            [get_rectangle_bounds(1, 1)[1], get_rectangle_bounds(1, 1)[3]],
+            [get_rectangle_bounds(1, 1)[0], get_rectangle_bounds(1, 1)[3]],
+        ],
+        "nb_paths": 7500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -168,7 +181,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[1, 0], [0, 1]],
-        "nb_paths": 200,
+        "nb_paths": 7500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -178,7 +191,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
-        "nb_paths": 200,
+        "nb_paths": 7500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 3,
@@ -187,7 +200,7 @@ TEST_DATA_DICTS = {
     "BALL2D_STANDARD": {
         "model_name": "Ball2D_BM",
         "max_radius": 1,
-        "nb_paths": 200,
+        "nb_paths": 7500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -196,7 +209,7 @@ TEST_DATA_DICTS = {
     "BALL2D_LARGE": {
         "model_name": "Ball2D_BM",
         "max_radius": 10,
-        "nb_paths": 200,
+        "nb_paths": 7500,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,
@@ -233,8 +246,9 @@ def opt_RBM_proj(RBM_data_dict_name):
 
 def opt_rect_proj(rect_data_dict_name):
     data_dict = DATA_DICTS[rect_data_dict_name]
-    lb_x, lb_y = 0, 0
-    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
+    lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(
+        data_dict["width"], data_dict["length"]
+    )
     lower = torch.tensor([lb_x, lb_y])
     upper = torch.tensor([ub_x, ub_y])
 
@@ -245,6 +259,8 @@ def opt_rect_proj(rect_data_dict_name):
 
 
 def opt_simplex_proj(Y):
+    # Algorithm by Yunmei Chen and Xiaojing Ye (2011), and their
+    # implementation at https://mathworks.com/matlabcentral/fileexchange/30332
     to_sub = torch.zeros(len(Y))
     for k, y_ in enumerate(Y):
         y = y_.clone().detach().numpy()
@@ -286,8 +302,10 @@ OPTIMAL_PROJECTION_FUNCS = {
 
 def get_ccw_rectangle_vertices(rect_data_dict_name):
     data_dict = DATA_DICTS[rect_data_dict_name]
-    lb_x, lb_y = 0, 0
-    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
+
+    lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(
+        data_dict["width"], data_dict["length"]
+    )
 
     # counterclockwise, starting from bottom-left
     v1, v2, v3, v4 = (lb_x, lb_y), (ub_x, lb_y), (ub_x, ub_y), (lb_x, ub_y)
@@ -334,8 +352,9 @@ def RBM_pen_func(data_dict):
 
 
 def rect_pen_func(Y, data_dict):
-    lb_x, lb_y = 0, 0
-    ub_x, ub_y = lb_x + data_dict["width"], lb_y + data_dict["length"]
+    lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(
+        data_dict["width"], data_dict["length"]
+    )
 
     # Separable so just project each coordinate independently
     projected = Y.clone().detach()
