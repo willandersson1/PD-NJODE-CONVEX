@@ -170,15 +170,11 @@ CONVEX_PEN_FUNCS = {
     "RBM_1_dict": RBM_pen_func(DATA_DICTS["RBM_1_dict"]),
     "RBM_STANDARD": RBM_pen_func(DATA_DICTS["RBM_STANDARD"]),
     "RBM_MORE_BOUNCES": RBM_pen_func(DATA_DICTS["RBM_MORE_BOUNCES"]),
-    "Rectangle_1_dict": lambda Y: rect_pen_func(Y, DATA_DICTS["Rectangle_1_dict"]),
-    "RECTANGLE_STANDARD": lambda Y: rect_pen_func(Y, DATA_DICTS["RECTANGLE_STANDARD"]),
-    "RECTANGLE_WIDER_WITH_MU": lambda Y: rect_pen_func(
-        Y, DATA_DICTS["RECTANGLE_WIDER_WITH_MU"]
-    ),
+    "Rectangle_1_dict": lambda Y: rect_pen_func(Y, "Rectangle_1_dict"),
+    "RECTANGLE_STANDARD": lambda Y: rect_pen_func(Y, "RECTANGLE_STANDARD"),
+    "RECTANGLE_WIDER_WITH_MU": lambda Y: rect_pen_func(Y, "RECTANGLE_WIDER_WITH_MU"),
     "Triangle_BM_weights_1_dict": zero_pen_func,
-    "BM_WEIGHTS_RECTANGLE_STANDARD": lambda Y: rect_pen_func(
-        Y, DATA_DICTS["RECTANGLE_STANDARD"]
-    ),
+    "BM_WEIGHTS_RECTANGLE_STANDARD": lambda Y: rect_pen_func(Y, "RECTANGLE_STANDARD"),
     "BM_WEIGHTS_SIMPLEX2D": simplex_pen_func,
     "BM_WEIGHTS_SIMPLEX3D": simplex_pen_func,
     "BALL2D_STANDARD": ball2D_pen_func(DATA_DICTS["BALL2D_STANDARD"]),

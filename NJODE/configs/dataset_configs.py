@@ -7,6 +7,7 @@ import torch
 def merge_dicts(a, b):
     return {**a, **b}
 
+
 def get_rectangle_bounds(width, length, offset=(0, 0)):
     o_x, o_y = offset
     lb_x = o_x - width / 2
@@ -15,6 +16,7 @@ def get_rectangle_bounds(width, length, offset=(0, 0)):
     ub_y = lb_y + length
 
     return lb_x, ub_x, lb_y, ub_y
+
 
 BASE_DATA_DICTS = {
     "FBM_1_dict": {
@@ -222,24 +224,28 @@ DATA_DICTS = merge_dicts(BASE_DATA_DICTS, TEST_DATA_DICTS)
 
 
 def opt_Ball2D_proj(ball2d_data_dict_name):
-    def optimal_proj(x):
-        R = DATA_DICTS[ball2d_data_dict_name]["max_radius"]
-        norm = torch.norm(x)
-        if norm**2 <= R**2:
-            return x
-        else:
-            return torch.min(x, (1 / norm) * x)
+    R = DATA_DICTS[ball2d_data_dict_name]["max_radius"]
+
+    def optimal_proj(X):
+        projected = X.clone().detach()
+        for i in range(len(X)):
+            norm = torch.norm(X[i], 2)
+            if norm <= R:
+                projected[i] = X[i]
+            else:
+                projected[i] = (1 / norm) * X[i]
+
+        return projected
 
     return optimal_proj
 
 
 def opt_RBM_proj(RBM_data_dict_name):
-    def optimal_proj(x):
-        return torch.clamp(
-            x,
-            DATA_DICTS[RBM_data_dict_name]["lb"],
-            DATA_DICTS[RBM_data_dict_name]["ub"],
-        )
+    lb = DATA_DICTS[RBM_data_dict_name]["lb"]
+    ub = DATA_DICTS[RBM_data_dict_name]["ub"]
+
+    def optimal_proj(X):
+        return torch.clamp(X, lb, ub)
 
     return optimal_proj
 
@@ -249,11 +255,25 @@ def opt_rect_proj(rect_data_dict_name):
     lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(
         data_dict["width"], data_dict["length"]
     )
-    lower = torch.tensor([lb_x, lb_y])
-    upper = torch.tensor([ub_x, ub_y])
 
-    def optimal_proj(x):
-        return torch.clamp(x, lower, upper)
+    def optimal_proj(X):
+        projected = X.clone().detach()
+        for i in range(len(X)):
+            in_x = lb_x <= X[i][0] <= ub_x
+            in_y = lb_y <= X[i][1] <= ub_y
+            if in_x and in_y:
+                projected[i] = X[i]
+                continue
+            if not in_x:
+                projected[i][0] = torch.min(
+                    torch.norm(X[i][0] - lb_x, 1), torch.norm(X[i][0] - ub_x, 1)
+                )
+            if not in_y:
+                projected[i][1] = torch.min(
+                    torch.norm(X[i][1] - lb_y, 1), torch.norm(X[i][1] - ub_y, 1)
+                )
+
+        return projected
 
     return optimal_proj
 
@@ -341,32 +361,17 @@ def standard_2_norm_for_lb_ub(Y, lb, ub):
 
 
 def RBM_pen_func(data_dict):
+    lb, ub = data_dict["lb"], data_dict["ub"]
+
     def pen(Y):
-        return standard_2_norm_for_lb_ub(
-            Y,
-            data_dict["lb"],
-            data_dict["ub"],
-        )
+        return standard_2_norm_for_lb_ub(Y, lb, ub)
 
     return pen
 
 
-def rect_pen_func(Y, data_dict):
-    lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(
-        data_dict["width"], data_dict["length"]
-    )
-
-    # Separable so just project each coordinate independently
-    projected = Y.clone().detach()
-    for i in range(len(Y)):
-        if not (lb_x <= Y[i][0] <= ub_x):
-            projected[i][0] = torch.min(
-                torch.norm(Y[i][0] - lb_x, 1), torch.norm(Y[i][0] - ub_x, 1)
-            )
-        if not (lb_y <= Y[i][1] <= ub_y):
-            projected[i][1] = torch.min(
-                torch.norm(Y[i][1] - lb_y, 1), torch.norm(Y[i][1] - ub_y, 1)
-            )
+def rect_pen_func(Y, rect_data_dict_name):
+    proj_func = opt_rect_proj(rect_data_dict_name)
+    projected = proj_func(Y).clone().detach()
 
     return torch.norm(Y - projected, 2, dim=1)
 
@@ -374,6 +379,7 @@ def rect_pen_func(Y, data_dict):
 def simplex_pen_func(Y):
     proj = opt_simplex_proj(Y)
     res = torch.norm(proj - Y, 2, dim=1)
+
     return res
 
 
@@ -384,8 +390,8 @@ def ball2D_pen_func(data_dict):
         res = torch.zeros(len(Y))
         for i, y in enumerate(Y):
             dist = torch.norm(y, 2)
-            if dist > R**2:
-                res[i] = dist
+            if dist > R:
+                res[i] = (dist - R) ** 2
 
         return res
 
