@@ -391,9 +391,6 @@ class ReflectedBM(StockModel):
         self.masked = True
         self.track_obs_cov_mat = False
 
-    def _get_bounds(self, a, b, k):
-        return a + k * (b - a), b + k * (b - a)
-
     def _in_shape(self, x):
         return self.lb < x < self.ub
 
@@ -412,10 +409,10 @@ class ReflectedBM(StockModel):
                     x = shifted_paths[0, 0, k]
                     if x < self.lb:
                         dist = self.lb - x
-                        shifted_paths[0, 0, k:] += dist
+                        shifted_paths[0, 0, k:] += 2 * dist
                     elif x > self.ub:
                         dist = x - self.ub
-                        shifted_paths[0, 0, k:] -= dist
+                        shifted_paths[0, 0, k:] -= 2 * dist
 
                 spot_paths[i, j, 1:] = shifted_paths[0][0]
 
@@ -908,15 +905,19 @@ def generate_BM_drift_diffusion(nb_paths, dim, nb_steps, dt, mu, sigma, x0=None)
     assert dt > 0
 
     sampled_numbers = np.random.standard_normal((nb_paths, dim, nb_steps))
-
-    for i in range(dim):
-        sampled_numbers[:, i, :] = mu[i] + sigma[i] * sampled_numbers[:, i, :]
+    motion_paths = np.zeros_like(sampled_numbers)
 
     # wlog just replace the first sample by x0
     if x0 is not None:
-        sampled_numbers[:, :, 0] = x0
+        motion_paths[:, :, 0] = x0
 
-    motion_paths = np.cumsum(sampled_numbers * sqrt(dt), axis=2)
+    for p in range(nb_paths):
+        for i in range(dim):
+            for t in range(1, nb_steps):
+                prev = motion_paths[p, i, t - 1]
+                sample = sampled_numbers[p, i, t]
+                curr = mu[i] * dt + sigma[i] * sqrt(dt) * sample
+                motion_paths[p, i, t] = prev + curr
 
     return motion_paths
 

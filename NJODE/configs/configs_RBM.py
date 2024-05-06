@@ -133,7 +133,7 @@ def get_RBM_MORE_BOUNCES_NJODE_config():
     param_dict = {
         "epochs": [200],
         "batch_size": [200],
-        "save_every": [20],
+        "save_every": [10],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
