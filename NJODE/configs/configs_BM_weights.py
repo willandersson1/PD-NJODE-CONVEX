@@ -361,6 +361,7 @@ def get_BM_WEIGHTS_SIMPLEX3D_NJODE_config():
         "evaluate": [True],
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
+        "lmbda": [0],
     }
     param_list += get_parameter_array(param_dict=param_dict)
 

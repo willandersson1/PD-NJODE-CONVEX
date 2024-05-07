@@ -544,6 +544,8 @@ def train(
 
     # get the model & optimizer
     if "other_model" not in options:  # take NJODE model if not specified otherwise
+        params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
+        params_dict["lmbda"] = options["lmbda"]
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = "NJODE"
     elif options["other_model"] == "optimal_projection":
