@@ -247,9 +247,9 @@ def get_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ_config():
     models_path = "{}saved_models_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [200],
+        "epochs": [10],
         "batch_size": [200],
-        "save_every": [20],
+        "save_every": [1],
         "learning_rate": [0.001],
         "test_size": [0.2],
         "seed": [398],
@@ -271,7 +271,7 @@ def get_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ_config():
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
-        "lmbda": [0],
+        "lmbda": [1],
     }
     param_list += get_parameter_array(param_dict=param_dict)
 

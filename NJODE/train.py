@@ -543,6 +543,7 @@ def train(
         save_extras = {}
 
     # get the model & optimizer
+    # TODO fix this up. also lmda isn't in every config.
     if "other_model" not in options:  # take NJODE model if not specified otherwise
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["lmbda"] = options["lmbda"]
@@ -578,12 +579,6 @@ def train(
     gradient_clip = None
     if "gradient_clip" in options:
         gradient_clip = options["gradient_clip"]
-
-    # evaluation loss function
-    which_eval_loss = "standard"
-    if "which_eval_loss" in options:
-        which_eval_loss = options["which_eval_loss"]
-    assert which_eval_loss in models.LOSS_FUN_DICT
 
     # load saved model if wanted/possible
     best_eval_loss = np.infty
@@ -771,7 +766,6 @@ def train(
                         get_loss=True,
                         M=M,
                         start_M=start_M,
-                        which_loss=which_eval_loss,
                     )
                 else:
                     raise ValueError
@@ -796,7 +790,6 @@ def train(
                             get_loss=True,
                             M=M,
                             start_M=start_M,
-                            which_loss=which_eval_loss,
                             dim_to=dimension,
                         )
                     loss_val_corrected += c_loss_corrected.detach().numpy()

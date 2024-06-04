@@ -683,8 +683,7 @@ class Ball2D_BM(StockModel):
         self.maturity = maturity
         self.dt = maturity / nb_steps
 
-        # Scaling factors
-        self.alpha_r = self.max_radius
+        # Scaling factor
         self.alpha_theta = pi
 
         self.loss = None
@@ -752,12 +751,12 @@ class Ball2D_BM(StockModel):
         s, t = current_t, current_t + delta_t
         for i, point in enumerate(y):
             # Radius conditional expectation
-            r_s = np.linalg.norm(point, 2) / self.alpha_r
+            r_s = np.linalg.norm(point, 2) / self.max_radius
             if r_s == 0:
                 cos_s, sin_s = 0, 0
             else:
-                cos_s = point[0] / (self.alpha_r * r_s)
-                sin_s = point[1] / (self.alpha_r * r_s)
+                cos_s = point[0] / (self.max_radius * r_s)
+                sin_s = point[1] / (self.max_radius * r_s)
 
             r_t = self.monte_carlo_radius(r_s, t - s)
 
@@ -767,7 +766,7 @@ class Ball2D_BM(StockModel):
             cos_t = temp * cos_s
             sin_t = temp * sin_s
 
-            res[i] = self.alpha_r * r_t * np.array([cos_t, sin_t])
+            res[i] = self.max_radius * r_t * np.array([cos_t, sin_t])
 
         return res
 

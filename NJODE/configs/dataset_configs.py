@@ -183,7 +183,7 @@ TEST_DATA_DICTS = {
         "model_name": "BMWeights",
         "should_compute_approx_cond_exp_paths": True,
         "vertices": [[1, 0], [0, 1]],
-        "nb_paths": 500,
+        "nb_paths": 32,
         "nb_steps": 100,
         "maturity": 1.0,
         "dimension": 2,

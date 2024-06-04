@@ -115,44 +115,7 @@ def compute_loss(
     return outer / batch_size
 
 
-def compute_loss_cvx(
-    X_obs,
-    Y_obs,
-    Y_obs_bj,
-    n_obs_ot,
-    batch_size,
-    penalising_func,
-    Y_obs_before_proj,
-    Y_obs_bj_before_proj,
-    lmbda=0,
-    eps=1e-10,
-    weight=0.5,
-    M_obs=None,
-):
-    original_loss = compute_loss(
-        X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps, weight, M_obs
-    )
-
-    if lmbda == 0:
-        return original_loss
-
-    pen_1 = torch.sum(penalising_func(Y_obs_before_proj) / n_obs_ot)
-    pen_2 = torch.sum(penalising_func(Y_obs_bj_before_proj) / n_obs_ot)
-    cvx_loss = lmbda * (pen_1 + pen_2)
-    cvx_loss /= batch_size
-    loss = cvx_loss + original_loss
-
-    return loss
-
-
-LOSS_FUN_DICT = {
-    # dictionary of used loss functions.
-    # Reminder inputs: (X_obs, Y_obs, Y_obs_bj, n_obs_ot, batch_size, eps=1e-10,
-    #   weight=0.5, M_obs=None)
-    "standard": compute_loss,
-    "cvx": compute_loss_cvx,
-}
-
+# TODO also here
 nonlinears = {  # dictionary of used non-linear activation functions. Reminder inputs
     "tanh": torch.nn.Tanh,
     "relu": torch.nn.ReLU,
@@ -477,15 +440,6 @@ class NJODE(torch.nn.Module):
 
         # get options from the options of train input
         options1 = options["options"]
-        # TODO ugly. Can use cvx loss just by setting pen func to None
-        # and lambda to 0
-        # if "which_loss" in options1:
-        #     self.which_loss = options1["which_loss"]
-        # else:
-        #     self.which_loss = "standard"  # otherwise take the standard loss
-        self.which_loss = "cvx"
-        assert self.which_loss in LOSS_FUN_DICT
-        print("using loss: {}".format(self.which_loss))
         self.lmbda = lmbda
         self.penalising_func = penalising_func
 
@@ -741,7 +695,6 @@ class NJODE(torch.nn.Module):
         until_T=False,
         M=None,
         start_M=None,
-        which_loss=None,
         dim_to=None,
         predict_labels=None,
         return_classifier_out=False,
@@ -792,10 +745,7 @@ class NJODE(torch.nn.Module):
         :return: torch.tensor (hidden state at final time), torch.tensor (loss),
                     if wanted the paths of t (np.array) and h, y (torch.tensors)
         """
-        if epoch is None:
-            epoch = 0
-        if which_loss is None:
-            which_loss = self.which_loss
+        epoch = 0 if epoch is None else epoch
 
         last_X = start_X
         batch_size = start_X.size()[0]
@@ -883,6 +833,8 @@ class NJODE(torch.nn.Module):
                     current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
+            
+                loss += self.additional_term(h, batch_size, delta_t)
 
                 # Storing the predictions.
                 if return_path:
@@ -952,30 +904,15 @@ class NJODE(torch.nn.Module):
                 Y = Y_bj
 
             if get_loss:
-                if which_loss == "cvx":
-                    loss = loss + LOSS_FUN_DICT[which_loss](
-                        X_obs=X_obs[:, :dim_to],
-                        Y_obs=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                        n_obs_ot=n_obs_ot[i_obs.long()],
-                        batch_size=batch_size,
-                        penalising_func=self.penalising_func,
-                        Y_obs_before_proj=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj_before_proj=Y_bj[i_obs.long(), :dim_to],
-                        lmbda=self.lmbda,
-                        weight=self.weight,
-                        M_obs=M_obs,
-                    )
-                else:
-                    loss = loss + LOSS_FUN_DICT[which_loss](
-                        X_obs=X_obs[:, :dim_to],
-                        Y_obs=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                        n_obs_ot=n_obs_ot[i_obs.long()],
-                        batch_size=batch_size,
-                        weight=self.weight,
-                        M_obs=M_obs,
-                    )
+                loss += compute_loss(
+                    X_obs=X_obs[:, :dim_to],
+                    Y_obs=Y[i_obs.long(), :dim_to],
+                    Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
+                    n_obs_ot=n_obs_ot[i_obs.long()],
+                    batch_size=batch_size,
+                    weight=self.weight,
+                    M_obs=M_obs,
+                )
 
             # make update of last_X and tau, that is not inplace
             #    (otherwise problems in autograd)
@@ -1223,6 +1160,14 @@ class NJODE(torch.nn.Module):
             cl_out = self.classifier(x)
             cl_loss = self.CEL(input=cl_out, target=y)
         return cl_loss, cl_out
+    
+    def additional_term(self, h, batch_size, delta_t):
+        # Return it if needed and supported, otherwise just return 0
+        if hasattr(self, "lmbda") and self.lmbda > 0:
+            point_loss = self.lmbda * self.penalising_func(self.readout_map(h))
+            print(point_loss)
+            return (1 / batch_size) * (delta_t * torch.sum(point_loss))
+        return 0
 
 
 class NJODE_convex_projection(NJODE):
@@ -1270,7 +1215,6 @@ class NJODE_convex_projection(NJODE):
         self.penalising_func = penalising_func
         self.lmbda = lmbda
         self.project = project
-        self.which_loss = "cvx"
 
     def forward(
         self,
@@ -1287,7 +1231,6 @@ class NJODE_convex_projection(NJODE):
         until_T=False,
         M=None,
         start_M=None,
-        which_loss=None,
         dim_to=None,
         return_at_last_obs=False,
     ):
@@ -1331,9 +1274,6 @@ class NJODE_convex_projection(NJODE):
         :return: torch.tensor (hidden state at final time), torch.tensor (loss),
                     if wanted the paths of t (np.array) and h, y (torch.tensors)
         """
-        if which_loss is None:
-            which_loss = self.which_loss
-
         last_X = start_X
         batch_size = start_X.size()[0]
         data_dim = start_X.size()[1]
@@ -1347,6 +1287,7 @@ class NJODE_convex_projection(NJODE):
         loss = 0
         c_sig = None
 
+        # TODO I think this will be removed
         if self.input_sig:
             if self.masked:
                 Mdc = M.clone()
@@ -1416,6 +1357,8 @@ class NJODE_convex_projection(NJODE):
                     current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
+                
+                loss += self.additional_term(h, batch_size, delta_t)
 
                 # Storing the predictions.
                 if return_path:
@@ -1474,23 +1417,7 @@ class NJODE_convex_projection(NJODE):
             sig_at_last_obs = c_sig
 
             if get_loss:
-                if which_loss == "cvx":
-                    loss = loss + LOSS_FUN_DICT[which_loss](
-                        X_obs=X_obs[:, :dim_to],
-                        Y_obs=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                        n_obs_ot=n_obs_ot[i_obs.long()],
-                        batch_size=batch_size,
-                        penalising_func=self.penalising_func,
-                        Y_obs_before_proj=Y_before_proj[i_obs.long(), :dim_to],
-                        Y_obs_bj_before_proj=Y_bj_before_proj[i_obs.long(), :dim_to],
-                        lmbda=self.lmbda,
-                        weight=self.weight,
-                        M_obs=M_obs,
-                    )
-                else:
-                    # This happens if e.g. in evaluation mode
-                    loss = loss + LOSS_FUN_DICT[which_loss](
+                loss += compute_loss(
                         X_obs=X_obs[:, :dim_to],
                         Y_obs=Y[i_obs.long(), :dim_to],
                         Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
@@ -1601,7 +1528,6 @@ class NJODE_vertex_approach(NJODE):
             weight_decay,
             **options,
         )
-        self.which_loss = "standard"
         self.vertices = vertices  # tensor shape (1, num, d_X)
 
         assert vertices.shape[1] == input_size
@@ -1633,7 +1559,6 @@ class NJODE_vertex_approach(NJODE):
         until_T=False,
         M=None,
         start_M=None,
-        which_loss=None,
         dim_to=None,
         return_at_last_obs=False,
     ):
@@ -1677,10 +1602,6 @@ class NJODE_vertex_approach(NJODE):
         :return: torch.tensor (hidden state at final time), torch.tensor (loss),
                     if wanted the paths of t (np.array) and h, y (torch.tensors)
         """
-        # TODO is this not now the same as NJODE?
-        if which_loss is None:
-            which_loss = self.which_loss
-
         last_X = start_X
         batch_size = start_X.size()[0]
         data_dim = start_X.size()[1]
@@ -1819,7 +1740,7 @@ class NJODE_vertex_approach(NJODE):
             sig_at_last_obs = c_sig
 
             if get_loss:
-                loss = loss + LOSS_FUN_DICT[which_loss](
+                loss += compute_loss(
                     X_obs=X_obs[:, :dim_to],
                     Y_obs=Y[i_obs.long(), :dim_to],
                     Y_obs_bj=Y_bj[i_obs.long(), :dim_to],

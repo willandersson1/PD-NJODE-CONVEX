@@ -19,7 +19,6 @@ STANDARD_PARAMS_EXTRACT_DESC = (
         "dropout_rate",
         "hidden_size",
         "batch_size",
-        "which_loss",
         "input_sig",
         "level",
     ),
