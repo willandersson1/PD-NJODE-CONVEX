@@ -203,7 +203,6 @@ class ODEFunc(torch.nn.Module):
     ):
         super().__init__()  # initialize class with given parameters
         self.input_current_t = input_current_t
-        self.input_sig = input_sig
         self.sig_depth = sig_depth
         self.use_current_y_for_ode = use_current_y_for_ode
         if input_scaling_func in ["id", "identity"]:
@@ -223,8 +222,6 @@ class ODEFunc(torch.nn.Module):
                 add += input_size
             else:
                 add += 1
-        if input_sig:
-            add += sig_depth
         if use_current_y_for_ode:
             add += input_size
         self.f = get_ffnn(  # get a feedforward NN with the given specifications
@@ -243,8 +240,6 @@ class ODEFunc(torch.nn.Module):
 
         if self.input_current_t:
             input_f = torch.cat([input_f, tau + tdiff], dim=1)
-        if self.input_sig:
-            input_f = torch.cat([input_f, signature], dim=1)
         if self.use_current_y_for_ode:
             input_f = torch.cat([input_f, self.sc_fun(current_y)], dim=1)
 
@@ -278,21 +273,9 @@ class FFNN(torch.nn.Module):
         super().__init__()
 
         self.use_lstm = False
-        if (
-            nn_desc is not None
-            and isinstance(nn_desc[0][0], str)
-            and nn_desc[0][0].lower() == "lstm"
-        ):
-            self.use_lstm = True
-            print("USE LSTM")
         in_size = input_size
-        if masked:
-            in_size = 2 * input_size
-        if recurrent and not self.use_lstm:
+        if recurrent:
             in_size += output_size
-        if input_sig:
-            in_size += sig_depth
-        self.masked = masked
         self.recurrent = recurrent
         self.output_size = output_size
         self.input_sig = input_sig
@@ -302,17 +285,6 @@ class FFNN(torch.nn.Module):
             in_size += t_size
         self.clamp = clamp
         self.lstm = None
-        if self.use_lstm:
-            self.lstm = torch.nn.LSTMCell(
-                input_size=in_size, hidden_size=nn_desc[0][1], bias=bias
-            )
-            self.c_h = None
-            in_size = nn_desc[0][1] * 2
-            assert in_size == output_size, (
-                "when using an LSTM, the hidden_size has to be 2* "
-                "the LSTM output size"
-            )
-            nn_desc = nn_desc[1:]
         self.ffnn = get_ffnn(
             input_size=in_size,
             output_size=output_size,
@@ -344,25 +316,15 @@ class FFNN(torch.nn.Module):
         elif self.case == 2:
             identity = nn_input[:, 0 : self.output_size]
 
-        if self.recurrent or self.use_lstm:
+        if self.recurrent:
             assert h is not None
             x = nn_input
         else:
             x = torch.tanh(nn_input)  # maybe not helpful
-        if self.recurrent and not self.use_lstm:
+        if self.recurrent:
             x = torch.cat((x, h), dim=1)
         if self.input_t:
             x = torch.cat((x, t), dim=1)
-        if self.masked:
-            assert mask is not None
-            x = torch.cat((x, mask), dim=1)
-        if self.input_sig:
-            assert sig is not None
-            x = torch.cat((x, sig), dim=1)
-        if self.use_lstm:
-            h_, c_ = torch.chunk(h, chunks=2, dim=1)
-            h_, c_ = self.lstm(x.float(), (h_, c_))
-            x = torch.concat((h_, c_), dim=1)
         out = self.ffnn(x.float())
 
         if self.case == 0:
@@ -432,8 +394,9 @@ class NJODE(torch.nn.Module):
                     'masked', 'input_current_t', 'input_sig', 'level',
                     'use_y_for_ode', 'enc_input_t' are used)
         """
-        super().__init__()  # super refers to base class, init initializes
+        super().__init__()
 
+        # TODO all this really needs to be cleaned up
         self.epoch = 1
         self.retrain_epoch = 0
         self.weight = weight
@@ -466,15 +429,11 @@ class NJODE(torch.nn.Module):
         if "input_current_t" in options1:
             self.input_current_t = options1["input_current_t"]
         self.input_sig = False
-        if "input_sig" in options1:
-            self.input_sig = options1["input_sig"]
         self.level = 2
         if "level" in options1:
             self.level = options1["level"]
         self.sig_depth = sig.siglength(input_size + 1, self.level)
         self.masked = False
-        if "masked" in options1:
-            self.masked = options1["masked"]
         self.use_y_for_ode = True
         if "use_y_for_ode" in options1:
             self.use_y_for_ode = options1["use_y_for_ode"]
@@ -482,8 +441,6 @@ class NJODE(torch.nn.Module):
         if "use_current_y_for_ode" in options1:
             self.use_current_y_for_ode = options1["use_current_y_for_ode"]
         self.coord_wise_tau = False
-        if "coord_wise_tau" in options1 and self.masked:
-            self.coord_wise_tau = options1["coord_wise_tau"]
         self.enc_input_t = False
         if "enc_input_t" in options1:
             self.enc_input_t = options1["enc_input_t"]
@@ -493,21 +450,8 @@ class NJODE(torch.nn.Module):
         self.ode_input_scaling_func = "tanh"
         if "ode_input_scaling_func" in options1:
             self.ode_input_scaling_func = options1["ode_input_scaling_func"]
-        classifier_dict = None
-        if "classifier_dict" in options:
-            classifier_dict = options["classifier_dict"]
-        self.use_sig_for_classifier = False
-        if "use_sig_for_classifier" in options1:
-            self.use_sig_for_classifier = options1["use_sig_for_classifier"]
         self.class_loss_weight = 1.0
         self.loss_weight = 1.0
-        if "classifier_loss_weight" in options1:
-            class_loss_weight = options1["classifier_loss_weight"]
-            if class_loss_weight == np.infty:
-                self.class_loss_weight = 1.0
-                self.loss_weight = 0.0
-            else:
-                self.class_loss_weight = class_loss_weight
         t_size = 2
         if self.coord_wise_tau:
             t_size = 2 * input_size
@@ -575,7 +519,6 @@ class NJODE(torch.nn.Module):
             residual=self.residual_dec,
             clamp=self.clamp,
         )
-        self.get_classifier(classifier_dict=classifier_dict)
 
         self.solver = solver
         self.input_size = input_size
@@ -588,17 +531,6 @@ class NJODE(torch.nn.Module):
         device = next(self.parameters()).device
         return device
 
-    def get_classifier(self, classifier_dict):
-        self.classifier = None
-        self.SM = None
-        self.CEL = None
-        if classifier_dict is not None:
-            if self.use_sig_for_classifier:
-                classifier_dict["input_size"] += self.sig_depth
-            self.classifier = FFNN(**classifier_dict)
-            self.SM = torch.nn.Softmax(dim=1)
-            self.CEL = torch.nn.CrossEntropyLoss()
-
     def weight_decay_step(self):
         inc = self.weight - 0.5
         self.weight = 0.5 + inc * self.weight_decay
@@ -607,20 +539,14 @@ class NJODE(torch.nn.Module):
     def ode_step(
         self, h, delta_t, current_time, last_X, tau, signature=None, current_y=None
     ):
-        """Executes a single ODE step"""
-        if not self.input_sig:
-            signature = None
-        if self.solver == "euler":
-            h = h + delta_t * self.ode_f(
-                x=last_X,
-                h=h,
-                tau=tau,
-                tdiff=current_time - tau,
-                signature=signature,
-                current_y=current_y,
-            )
-        else:
-            raise ValueError("Unknown solver '{}'.".format(self.solver))
+        h = h + delta_t * self.ode_f(
+            x=last_X,
+            h=h,
+            tau=tau,
+            tdiff=current_time - tau,
+            signature=signature,
+            current_y=current_y,
+        )
 
         current_time += delta_t
         return h, current_time
@@ -764,37 +690,7 @@ class NJODE(torch.nn.Module):
         c_sig = None
         num_in, num_out = 0, 0
 
-        if self.input_sig:
-            if self.masked:
-                Mdc = M.clone()
-                Mdc[Mdc == 0] = np.nan
-                X_obs_impute = X * Mdc
-                signature = self.get_signature(
-                    times=times,
-                    time_ptr=time_ptr,
-                    X=X_obs_impute,
-                    obs_idx=obs_idx,
-                    start_X=start_X,
-                )
-            else:
-                signature = self.get_signature(
-                    times=times,
-                    time_ptr=time_ptr,
-                    X=X,
-                    obs_idx=obs_idx,
-                    start_X=start_X,
-                )
-
-            # in beginning, no path was observed => set sig to 0
-            current_sig = np.zeros((batch_size, self.sig_depth))
-            current_sig_nb = np.zeros(batch_size).astype(int)
-            c_sig = torch.from_numpy(current_sig).float().to(self.device)
-
-        if self.masked:
-            if start_M is None:
-                start_M = torch.ones_like(start_X)
-        else:
-            start_M = None
+        start_M = None
 
         h = self.encoder_map(
             start_X,
@@ -822,19 +718,15 @@ class NJODE(torch.nn.Module):
                     delta_t_ = delta_t
                 else:
                     delta_t_ = obs_time - current_time
-                if self.solver == "euler":
-                    h, current_time = self.ode_step(
-                        h,
-                        delta_t_,
-                        current_time,
-                        last_X=last_X,
-                        tau=tau,
-                        signature=c_sig,
-                        current_y=self.full_readout(h),
-                    )
-                    current_time_nb = int(round(current_time / delta_t))
-                else:
-                    raise NotImplementedError
+                h, current_time = self.ode_step(
+                    h,
+                    delta_t_,
+                    current_time,
+                    last_X=last_X,
+                    tau=tau,
+                    signature=c_sig,
+                    current_y=self.full_readout(h),
+                )
 
                 # NOTE: here (and elsewhere when checking isin) using the "vanilla"
                 #  self.readout_map instead of the new one. This is correct!
@@ -855,13 +747,7 @@ class NJODE(torch.nn.Module):
             end = time_ptr[i + 1]
             X_obs = X[start:end]
             i_obs = obs_idx[start:end]
-            if self.masked:
-                if isinstance(M, np.ndarray):
-                    M_obs = torch.from_numpy(M[start:end]).to(self.device)
-                else:
-                    M_obs = M[start:end]
-            else:
-                M_obs = None
+            M_obs = None
 
             # decide whether to use observation as input
             if self.training:  # check whether model is in training or eval mode
@@ -869,27 +755,12 @@ class NJODE(torch.nn.Module):
             else:
                 use_as_input = self.val_use_observation_as_input(epoch)
 
-            # update signature
-            if self.input_sig or self.use_sig_for_classifier:
-                for j in i_obs:
-                    current_sig[j, :] = signature[j][current_sig_nb[j]]
-                current_sig_nb[i_obs] += 1
-                if use_as_input:
-                    c_sig = torch.from_numpy(current_sig).float().to(self.device)
-
             # Using RNNCell to update h. Also updating loss, tau and last_X
             Y_bj = self.full_readout(h)
             if use_as_input:
                 X_obs_impute = X_obs
                 temp = h.clone()
-                if self.masked:
-                    X_obs_impute = (
-                        X_obs * M_obs
-                        + (torch.ones_like(M_obs.long()) - M_obs) * Y_bj[i_obs.long()]
-                    )
                 c_sig_iobs = None
-                if self.input_sig:
-                    c_sig_iobs = c_sig[i_obs]
 
                 temp[i_obs.long()] = self.encoder_map(
                     X_obs_impute,
@@ -927,10 +798,7 @@ class NJODE(torch.nn.Module):
             if use_as_input:
                 temp_X = last_X.clone()
                 temp_tau = tau.clone()
-                if self.masked and self.use_y_for_ode:
-                    temp_X[i_obs.long()] = Y[i_obs.long()]
-                else:
-                    temp_X[i_obs.long()] = X_obs_impute
+                temp_X[i_obs.long()] = X_obs_impute
                 if self.coord_wise_tau:
                     _M = torch.zeros_like(temp_tau)
                     _M[i_obs] = M_obs
@@ -952,18 +820,15 @@ class NJODE(torch.nn.Module):
                     delta_t_ = delta_t
                 else:
                     delta_t_ = T - current_time
-                if self.solver == "euler":
-                    h, current_time = self.ode_step(
-                        h,
-                        delta_t_,
-                        current_time,
-                        last_X=last_X,
-                        tau=tau,
-                        signature=c_sig,
-                        current_y=self.full_readout(h),
-                    )
-                else:
-                    raise NotImplementedError
+                h, current_time = self.ode_step(
+                    h,
+                    delta_t_,
+                    current_time,
+                    last_X=last_X,
+                    tau=tau,
+                    signature=c_sig,
+                    current_y=self.full_readout(h),
+                )
 
                 isin = self.in_shape_func(self.readout_map(h))
                 num_in += isin.count(True)
@@ -1140,15 +1005,6 @@ class NJODE(torch.nn.Module):
             start_M=start_M,
         )
         return {"pred": path_y, "pred_t": path_t}
-
-    def forward_classifier(self, x, y):
-        # after last observation has been processed, apply classifier if wanted
-        cl_out = None
-        cl_loss = None
-        if self.classifier is not None:
-            cl_out = self.classifier(x)
-            cl_loss = self.CEL(input=cl_out, target=y)
-        return cl_loss, cl_out
 
     def additional_term(self, h, batch_size, delta_t):
         # Return it if needed and supported, otherwise just return 0

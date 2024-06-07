@@ -27,7 +27,6 @@ def train_switcher(**params):
     if (
         params["dataset"] in list(synthetic_datasets.DATASETS)
         or "combined" in params["dataset"]
-        or "FBM[" in params["dataset"]
     ):
         return train.train(**params)
     else:

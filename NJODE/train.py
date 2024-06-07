@@ -17,6 +17,7 @@ from typing import List
 import data_utils
 import matplotlib
 import matplotlib.colors
+import matplotlib.pyplot as plt
 import models
 import numpy as np
 import pandas as pd
@@ -26,7 +27,6 @@ import tqdm
 from configs import config, config_constants, config_utils, dataset_configs
 from sklearn.model_selection import train_test_split
 from synthetic_datasets import Ball2D_BM, Rectangle, ReflectedBM
-from torch.backends import cudnn
 from torch.utils.data import DataLoader
 
 # TODO this is bad
@@ -34,14 +34,9 @@ sys.path.append("../")
 
 # =====================================================================================================================
 # check whether running on computer or server
-if "ada-" not in socket.gethostname():
-    SERVER = False
-    N_CPUS = 1
-else:
-    SERVER = True
-    N_CPUS = 1
-    matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+SERVER = False
+N_CPUS = 1
+
 
 print(socket.gethostname())
 print("SERVER={}".format(SERVER))
@@ -66,7 +61,6 @@ default_ode_nn = ((50, "tanh"), (50, "tanh"))
 default_readout_nn = ((50, "tanh"), (50, "tanh"))
 default_enc_nn = ((50, "tanh"), (50, "tanh"))
 
-ANOMALY_DETECTION = False
 N_DATASET_WORKERS = 0
 USE_GPU = False
 
@@ -77,7 +71,6 @@ makedirs = config_utils.makedirs
 
 
 def train(
-    anomaly_detection=None,
     n_dataset_workers=None,
     use_gpu=None,
     nb_cpus=None,
@@ -281,9 +274,7 @@ def train(
                 -> 'randomizedNJODE' has same options as NJODE
     """
 
-    global ANOMALY_DETECTION, USE_GPU, N_CPUS, N_DATASET_WORKERS
-    if anomaly_detection is not None:
-        ANOMALY_DETECTION = anomaly_detection
+    global USE_GPU, N_CPUS, N_DATASET_WORKERS
     if use_gpu is not None:
         USE_GPU = use_gpu
     if nb_cpus is not None:
@@ -296,22 +287,10 @@ def train(
     use_cond_exp = True
     if "use_cond_exp" in options:
         use_cond_exp = options["use_cond_exp"]
+
     eval_use_true_paths = False
     if "eval_use_true_paths" in options:
         eval_use_true_paths = options["eval_use_true_paths"]
-
-    masked = False
-    if "masked" in options and "other_model" not in options:
-        masked = options["masked"]
-
-    if ANOMALY_DETECTION:
-        # allow backward pass to print the traceback of the forward operation
-        #   if it fails, "nan" backward computation produces error
-        torch.autograd.set_detect_anomaly(True)
-        torch.manual_seed(0)
-        np.random.seed(0)
-        # set seed and deterministic to make reproducible
-        cudnn.deterministic = True
 
     # set number of CPUs
     torch.set_num_threads(N_CPUS)
@@ -382,14 +361,14 @@ def train(
         collate_fn, mult = data_utils.CustomCollateFnGen(None)
         mult = 1
 
-    dl = DataLoader(  # class to iterate over training data
+    dl = DataLoader(
         dataset=data_train,
         collate_fn=collate_fn,
         shuffle=True,
         batch_size=batch_size,
         num_workers=N_DATASET_WORKERS,
     )
-    dl_val = DataLoader(  # class to iterate over validation data
+    dl_val = DataLoader(
         dataset=data_val,
         collate_fn=collate_fn,
         shuffle=False,
@@ -400,7 +379,7 @@ def train(
         **dataset_metadata
     )
     if test_data_dict is not None:
-        dl_test = DataLoader(  # class to iterate over test data
+        dl_test = DataLoader(
             dataset=data_test,
             collate_fn=collate_fn,
             shuffle=False,
@@ -443,29 +422,13 @@ def train(
     stockmodel = data_utils._STOCK_MODELS[dataset_metadata["model_name"]](
         **dataset_metadata
     )
-    # NOTE will have to adjust this when adding a new model
-    if (
-        use_cond_exp
-        and "other_model" not in options
-        or use_cond_exp
-        and dataset_metadata["model_name"]
-        in {"RBM", "Rectangle", "BMWeights", "Ball2D_BM"}
-    ):
-        opt_eval_loss = compute_optimal_eval_loss(
-            dl_val, stockmodel, delta_t, T, mult=mult
+
+    opt_eval_loss = compute_optimal_eval_loss(dl_val, stockmodel, delta_t, T, mult=mult)
+    initial_print += (
+        "\noptimal eval loss (achieved by true cond exp): " "{:.5f}".format(
+            opt_eval_loss
         )
-        initial_print += (
-            "\noptimal eval loss (achieved by true cond exp): " "{:.5f}".format(
-                opt_eval_loss
-            )
-        )
-    else:
-        opt_eval_loss = np.nan
-    if "other_model" in options and options["other_model"] not in {
-        "optimal_projection",
-        "vertex_approach",
-    }:
-        opt_eval_loss = np.nan
+    )
 
     # get params_dict
     params_dict = {  # create a dictionary of the wanted parameters
@@ -721,8 +684,6 @@ def train(
             if gradient_clip is not None:
                 nn.utils.clip_grad_value_(model.parameters(), clip_value=gradient_clip)
             optimizer.step()  # update weights by ADAM optimizer
-            if ANOMALY_DETECTION:
-                print(r"current loss: {}".format(loss.detach().numpy()))
         pct_in = num_in / (
             num_in + num_out
         )  # TODO I'm sure I can calculate this without needing num_out
@@ -746,8 +707,6 @@ def train(
                 time_ptr = b["time_ptr"]
                 X = b["X"].to(device)
                 M = b["M"]
-                if M is not None:
-                    M = M.to(device)
                 start_M = b["start_M"]
                 if start_M is not None:
                     start_M = start_M.to(device)
@@ -758,35 +717,27 @@ def train(
                 true_paths = b["true_paths"]
                 true_mask = b["true_mask"]
 
-                # TODO can remove this, also above stuff probably
-                if "other_model" not in options or model_name in (
-                    "vertex_approach",
-                    "convex_projection",
-                    "NJmodel",
-                ):
-                    hT, c_loss, _, _ = model(
-                        times,
-                        time_ptr,
-                        X,
-                        obs_idx,
-                        delta_t,
-                        T,
-                        start_X,
-                        n_obs_ot,
-                        return_path=False,
-                        get_loss=True,
-                        M=M,
-                        start_M=start_M,
-                    )
-                else:
-                    raise ValueError
+                hT, c_loss, _, _ = model(
+                    times,
+                    time_ptr,
+                    X,
+                    obs_idx,
+                    delta_t,
+                    T,
+                    start_X,
+                    n_obs_ot,
+                    return_path=False,
+                    get_loss=True,
+                    M=M,
+                    start_M=start_M,
+                )
                 loss_val += c_loss.detach().numpy()
                 num_obs += 1  # count number of observations
 
                 # if functions are applied, also compute the loss when only
                 #   using the coordinates where function was not applied
                 #   -> this can be compared to the optimal-eval-loss
-                if mult is not None and mult > 1:
+                if mult is not None and mult > 1:  # TODO is this used?
                     if "other_model" not in options:
                         hT_corrected, c_loss_corrected, _, _ = model(
                             times,
@@ -812,8 +763,6 @@ def train(
                     time_ptr = b["time_ptr"]
                     X = b["X"].to(device)
                     M = b["M"]
-                    if M is not None:
-                        M = M.to(device)
                     start_M = b["start_M"]
                     if start_M is not None:
                         start_M = start_M.to(device)

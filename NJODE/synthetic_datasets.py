@@ -12,7 +12,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from configs.dataset_configs import get_rectangle_bounds
-from fbm import fgn
 from scipy.integrate import quad
 from scipy.special import softmax
 from scipy.stats import norm
@@ -43,7 +42,6 @@ class StockModel:
         self.loss = None
         self.path_t = None
         self.path_y = None
-        self.masked = False
         self.track_obs_cov_mat = False
 
     def generate_paths(self, **options):
@@ -60,9 +58,6 @@ class StockModel:
         :return: cond. exp. at next time_point (= current_time + time_delta)
         """
         raise ValueError("not implemented yet")
-
-    def get_cov_mat(self):
-        raise NotImplementedError()
 
     def compute_cond_exp(
         self,
@@ -117,16 +112,6 @@ class StockModel:
         y = start_X
         batch_size = start_X.shape[0]
 
-        assert not self.track_obs_cov_mat or (self.track_obs_cov_mat and self.masked)
-
-        if self.masked:
-            self.observed_t = [[] for _ in range(batch_size)]
-            self.observed_X = [[] for _ in range(batch_size)]
-
-        if self.track_obs_cov_mat:
-            self.obs_cov_mat = [None for x in range(batch_size)]
-            self.obs_cov_mat_inv = [None for x in range(batch_size)]
-
         current_time = 0.0
         if start_time:
             current_time = start_time
@@ -173,16 +158,6 @@ class StockModel:
 
             for bid in i_obs:
                 last_obs_times[bid] = times[i]
-
-            # add to observed, if we're tracking it
-            if self.masked:
-                for j, ii in enumerate(i_obs):
-                    self.observed_t[ii].append(obs_time)
-                    self.observed_X[ii].append(X_obs[j, 0])
-
-                    if self.track_obs_cov_mat:
-                        self.obs_cov_mat[ii] = self.get_cov_mat(self.observed_t[ii])
-                        self.obs_cov_mat_inv[ii] = np.linalg.inv(self.obs_cov_mat[ii])
 
             # Update h. Also updating loss, tau and last_X
             Y_bj = y
@@ -274,85 +249,6 @@ class StockModel:
         return loss
 
 
-class FracBM(StockModel):
-    """
-    Implementing FBM via FBM package
-    """
-
-    def __init__(
-        self, nb_paths, nb_steps, S0, maturity, hurst, method="daviesharte", **kwargs
-    ):
-        """Instantiate the FBM"""
-        super().__init__(
-            drift=None,
-            volatility=None,
-            S0=S0,
-            nb_paths=nb_paths,
-            nb_steps=nb_steps,
-            maturity=maturity,
-            sine_coeff=None,
-        )
-        self.nb_paths = nb_paths
-        self.nb_steps = nb_steps
-        self.S0 = S0
-        self.maturity = maturity
-        self.hurst = hurst
-        self.method = method
-        self.dimensions = np.size(S0)
-        self.loss = None
-        self.path_t = None
-        self.path_y = None
-        self.masked = True
-        self.track_obs_cov_mat = True
-
-    def r_H(self, t, s):
-        return 0.5 * (
-            t ** (2 * self.hurst)
-            + s ** (2 * self.hurst)
-            - np.abs(t - s) ** (2 * self.hurst)
-        )
-
-    def get_cov_mat(self, times):
-        m = np.array(times).reshape((-1, 1)).repeat(len(times), axis=1)
-        return self.r_H(m, np.transpose(m))
-
-    def next_cond_exp(self, y, delta_t, current_t, **kwargs):
-        t = current_t + delta_t
-        next_y = np.zeros_like(y)
-        for ii in range(y.shape[0]):
-            if self.obs_cov_mat_inv[ii] is not None:
-                r = self.r_H(np.array(self.observed_t[ii]), t)
-                next_y[ii] = np.dot(
-                    r,
-                    np.matmul(self.obs_cov_mat_inv[ii], np.array(self.observed_X[ii])),
-                )
-        return next_y
-
-    def compute_cond_exp(self, *args, **kwargs):
-        assert self.dimensions == 1, "cond. exp. computation of FBM only for 1d"
-        assert self.S0 == 0, "cond. exp. computation of FBM only for S0=0"
-        return super().compute_cond_exp(*args, **kwargs)
-
-    def generate_paths(self, start_X=None):
-        spot_paths = np.empty((self.nb_paths, self.dimensions, self.nb_steps + 1))
-        dt = self.dt
-        if start_X is not None:
-            spot_paths[:, :, 0] = start_X
-        else:
-            spot_paths[:, :, 0] = self.S0
-        for i in range(self.nb_paths):
-            for j in range(self.dimensions):
-                fgn_sample = fgn(
-                    n=self.nb_steps,
-                    hurst=self.hurst,
-                    length=self.maturity,
-                    method=self.method,
-                )
-                spot_paths[i, j, 1:] = np.cumsum(fgn_sample) + spot_paths[i, j, 0]
-        # stock_path dimension: [nb_paths, dimension, time_steps]
-        return spot_paths, dt
-
-
 class ReflectedBM(StockModel):
     def __init__(
         self,
@@ -388,7 +284,6 @@ class ReflectedBM(StockModel):
         self.path_y = None
         self.use_approx_paths_technique = use_approx_paths_technique
         self.use_numerical_cond_exp = use_numerical_cond_exp
-        self.masked = True
         self.track_obs_cov_mat = False
 
     def _in_shape(self, x):
@@ -596,7 +491,6 @@ class Rectangle(StockModel):
         self.path_y = None
         self.use_approx_paths_technique = use_approx_paths_technique
         self.use_numerical_cond_exp = use_numerical_cond_exp
-        self.masked = True
         self.track_obs_cov_mat = False
 
         lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(width, length)
@@ -689,7 +583,6 @@ class Ball2D_BM(StockModel):
         self.loss = None
         self.path_t = None
         self.path_y = None
-        self.masked = False
         self.track_obs_cov_mat = False
 
     def generate_paths(self, x0=None):
@@ -796,7 +689,6 @@ class BMWeights(StockModel):
         self.loss = None
         self.path_t = None
         self.path_y = None
-        self.masked = False
         self.track_obs_cov_mat = False
 
         if len(vertices) > 4:
@@ -953,7 +845,6 @@ def compute_loss(
 
 
 DATASETS = {
-    "FBM": FracBM,
     "RBM": ReflectedBM,
     "Rectangle": Rectangle,
     "BMWeights": BMWeights,

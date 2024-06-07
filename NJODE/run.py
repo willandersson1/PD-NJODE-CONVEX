@@ -10,7 +10,6 @@ import socket
 import traceback
 
 import extras
-import matplotlib
 import numpy as np
 import pandas as pd
 from absl import app, flags
@@ -53,44 +52,18 @@ flags.DEFINE_string(
     "name of the dict (in config.py) defining input for "
     "extras.plot_paths_from_checkpoint",
 )
-flags.DEFINE_string(
-    "crossval",
-    None,
-    "name of the dict (in config.py) defining input for " "extras.get_cross_validation",
-)
-flags.DEFINE_string(
-    "plot_conv_study",
-    None,
-    "name of the dict (in config.py) defining input for "
-    "extras.plot_convergence_study",
-)
-flags.DEFINE_string(
-    "plot_loss_comparison",
-    None,
-    "name of the dict (in config.py) defining input for " "extras.plot_loss_comparison",
-)
 
 
 flags.DEFINE_bool("USE_GPU", False, "whether to use GPU for training")
 flags.DEFINE_integer("GPU_NUM", 0, "which GPU to use for training")
-flags.DEFINE_bool("ANOMALY_DETECTION", False, "whether to run in torch debug mode")
 flags.DEFINE_integer(
     "N_DATASET_WORKERS", 0, "number of processes that generate batches in parallel"
 )
 
-# check whether running on computer or server
-if "ada-" not in socket.gethostname():
-    SERVER = False
-    flags.DEFINE_integer("NB_JOBS", 1, "nb of parallel jobs to run  with joblib")
-    flags.DEFINE_integer("NB_CPUS", 1, "nb of CPUs used by each training")
-else:
-    SERVER = True
-    flags.DEFINE_integer("NB_JOBS", 24, "nb of parallel jobs to run  with joblib")
-    flags.DEFINE_integer("NB_CPUS", 2, "nb of CPUs used by each training")
-    matplotlib.use("Agg")
+flags.DEFINE_integer("NB_JOBS", 1, "nb of parallel jobs to run  with joblib")
+flags.DEFINE_integer("NB_CPUS", 1, "nb of CPUs used by each training")
 
 print(socket.gethostname())
-print("SERVER={}".format(SERVER))
 
 
 # =====================================================================================================================
@@ -148,7 +121,9 @@ def parallel_training(
     model_overview_file_name = "{}model_overview.csv".format(saved_models_path)
     config_utils.makedirs(saved_models_path)
     if not os.path.exists(model_overview_file_name):
-        df_overview = pd.DataFrame(data=None, columns=["id", "description"], dtype=object)
+        df_overview = pd.DataFrame(
+            data=None, columns=["id", "description"], dtype=object
+        )
         max_id = 0
     else:
         df_overview = pd.read_csv(model_overview_file_name, index_col=0)
@@ -217,9 +192,8 @@ def parallel_training(
         param["parallel"] = True
 
     if FLAGS.DEBUG:
-        results = Parallel(n_jobs=nb_jobs)(
+        _ = Parallel(n_jobs=nb_jobs)(
             delayed(train_switcher)(
-                anomaly_detection=FLAGS.ANOMALY_DETECTION,
                 n_dataset_workers=FLAGS.N_DATASET_WORKERS,
                 use_gpu=FLAGS.USE_GPU,
                 gpu_num=FLAGS.GPU_NUM,
@@ -230,9 +204,8 @@ def parallel_training(
         )
     else:
         try:
-            results = Parallel(n_jobs=nb_jobs)(
+            _ = Parallel(n_jobs=nb_jobs)(
                 delayed(train_switcher)(
-                    anomaly_detection=FLAGS.ANOMALY_DETECTION,
                     n_dataset_workers=FLAGS.N_DATASET_WORKERS,
                     use_gpu=FLAGS.USE_GPU,
                     gpu_num=FLAGS.GPU_NUM,
@@ -278,15 +251,6 @@ def main(arg):
     plot_paths_dict = None
     if FLAGS.plot_paths:
         plot_paths_dict = eval("config." + FLAGS.plot_paths)
-    crossval = None
-    if FLAGS.crossval:
-        crossval = eval("config." + FLAGS.crossval)
-    plot_conv_study = None
-    if FLAGS.plot_conv_study:
-        plot_conv_study = eval("config." + FLAGS.plot_conv_study)
-    plot_loss_comparison = None
-    if FLAGS.plot_loss_comparison:
-        plot_loss_comparison = eval("config." + FLAGS.plot_loss_comparison)
     print("nb_jobs: {}".format(nb_jobs))
     if params_list is not None or model_ids is not None:
         parallel_training(
@@ -301,12 +265,6 @@ def main(arg):
         extras.get_training_overview(**get_training_overview_dict)
     if plot_paths_dict is not None:
         extras.plot_paths_from_checkpoint(**plot_paths_dict)
-    if crossval is not None:
-        extras.get_cross_validation(**crossval)
-    if plot_conv_study is not None:
-        extras.plot_convergence_study(**plot_conv_study)
-    if plot_loss_comparison is not None:
-        extras.plot_loss_comparison(**plot_loss_comparison)
 
 
 if __name__ == "__main__":

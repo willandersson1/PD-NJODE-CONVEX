@@ -4,10 +4,6 @@ import numpy as np
 import torch
 
 
-def merge_dicts(a, b):
-    return {**a, **b}
-
-
 def get_rectangle_bounds(width, length, offset=(0, 0)):
     o_x, o_y = offset
     lb_x = o_x - width / 2
@@ -18,73 +14,7 @@ def get_rectangle_bounds(width, length, offset=(0, 0)):
     return lb_x, ub_x, lb_y, ub_y
 
 
-BASE_DATA_DICTS = {
-    "FBM_1_dict": {
-        "model_name": "FBM",
-        "nb_paths": 100,
-        "nb_steps": 100,
-        "S0": 0,
-        "maturity": 1.0,
-        "dimension": 1,
-        "obs_perc": 0.1,
-        "return_vol": False,
-        "hurst": 0.05,
-        "FBMmethod": "daviesharte",
-    },
-    "RBM_1_dict": {
-        "model_name": "RBM",
-        "nb_paths": 6,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 1,
-        "obs_perc": 0.1,
-        "mu": 0.4,
-        "sigma": 1,
-        "lb": 0,
-        "ub": 2,
-        "max_terms": 3,
-        "use_approx_paths_technique": True,
-        "use_numerical_cond_exp": True,
-    },
-    "Rectangle_1_dict": {
-        "model_name": "Rectangle",
-        "nb_paths": 6,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 2,
-        "obs_perc": 0.1,
-        "mu_x": 0.6,
-        "sigma_x": 2,
-        "mu_y": -0.1,
-        "sigma_y": 1,
-        "max_terms": 3,
-        "use_approx_paths_technique": True,
-        "use_numerical_cond_exp": True,
-        "width": 5,
-        "length": 1,
-    },
-    "Triangle_BM_weights_1_dict": {
-        "model_name": "BMWeights",
-        "should_compute_approx_cond_exp_paths": True,
-        "vertices": [[1, 0], [0, 1]],
-        "nb_paths": 6,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 2,
-        "obs_perc": 0.1,
-    },
-    "Ball2D_BM_1_dict": {
-        "model_name": "Ball2D_BM",
-        "max_radius": 10,
-        "nb_paths": 6,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 2,
-        "obs_perc": 0.1,
-    },
-}
-
-TEST_DATA_DICTS = {
+DATA_DICTS = {
     "RBM_DONT_HIT": {  # for comparison to normal NJODE, is it useful though?
         "model_name": "RBM",
         "nb_paths": 200,
@@ -220,9 +150,6 @@ TEST_DATA_DICTS = {
 }
 
 
-DATA_DICTS = merge_dicts(BASE_DATA_DICTS, TEST_DATA_DICTS)
-
-
 def opt_Ball2D_proj(ball2d_data_dict_name):
     R = DATA_DICTS[ball2d_data_dict_name]["max_radius"]
 
@@ -305,16 +232,13 @@ def opt_simplex_proj(Y):
 
 
 OPTIMAL_PROJECTION_FUNCS = {
-    "RBM_1_dict": opt_RBM_proj("RBM_1_dict"),
     "RBM_STANDARD": opt_RBM_proj("RBM_STANDARD"),
     "RBM_MORE_BOUNCES": opt_RBM_proj("RBM_MORE_BOUNCES"),
-    "Rectangle_1_dict": opt_rect_proj("Rectangle_1_dict"),
     "RECTANGLE_STANDARD": opt_rect_proj("RECTANGLE_STANDARD"),
     "RECTANGLE_WIDER_WITH_MU": opt_rect_proj("RECTANGLE_WIDER_WITH_MU"),
     "BM_WEIGHTS_RECTANGLE_STANDARD": opt_rect_proj("RECTANGLE_STANDARD"),
     "BM_WEIGHTS_SIMPLEX2D": opt_simplex_proj,
     "BM_WEIGHTS_SIMPLEX3D": opt_simplex_proj,
-    "Ball2D_BM_1_dict": opt_Ball2D_proj("Ball2D_BM_1_dict"),
     "BALL2D_STANDARD": opt_Ball2D_proj("BALL2D_STANDARD"),
     "BALL2D_LARGE": opt_Ball2D_proj("BALL2D_LARGE"),
 }
@@ -338,10 +262,8 @@ def easy_vertices(dataset_name):
 
 
 VERTEX_APPROACH_VERTICES = {
-    "Rectangle_1_dict": get_ccw_rectangle_vertices("Rectangle_1_dict"),
     "RECTANGLE_STANDARD": get_ccw_rectangle_vertices("RECTANGLE_STANDARD"),
     "RECTANGLE_WIDER_WITH_MU": get_ccw_rectangle_vertices("RECTANGLE_WIDER_WITH_MU"),
-    "Triangle_BM_weights_1_dict": easy_vertices("Triangle_BM_weights_1_dict"),
     "BM_WEIGHTS_RECTANGLE_STANDARD": easy_vertices("BM_WEIGHTS_RECTANGLE_STANDARD"),
     "BM_WEIGHTS_SIMPLEX2D": easy_vertices("BM_WEIGHTS_SIMPLEX2D"),
     "BM_WEIGHTS_SIMPLEX3D": easy_vertices("BM_WEIGHTS_SIMPLEX3D"),
@@ -463,16 +385,13 @@ def ball2D_in_shape(ball2d_data_dict_name):
 
 
 IN_SHAPE_FUNCS = {
-    "RBM_1_dict": RBM_in_shape("RBM_1_dict"),
     "RBM_STANDARD": RBM_in_shape("RBM_STANDARD"),
     "RBM_MORE_BOUNCES": RBM_in_shape("RBM_MORE_BOUNCES"),
-    "Rectangle_1_dict": rect_in_shape("Rectangle_1_dict"),
     "RECTANGLE_STANDARD": rect_in_shape("RECTANGLE_STANDARD"),
     "RECTANGLE_WIDER_WITH_MU": rect_in_shape("RECTANGLE_WIDER_WITH_MU"),
     "BM_WEIGHTS_RECTANGLE_STANDARD": rect_in_shape("RECTANGLE_STANDARD"),
     "BM_WEIGHTS_SIMPLEX2D": simplex_in_shape,
     "BM_WEIGHTS_SIMPLEX3D": simplex_in_shape,
-    "Ball2D_BM_1_dict": ball2D_in_shape("Ball2D_BM_1_dict"),
     "BALL2D_STANDARD": ball2D_in_shape("BALL2D_STANDARD"),
     "BALL2D_LARGE": ball2D_in_shape("BALL2D_LARGE"),
 }
