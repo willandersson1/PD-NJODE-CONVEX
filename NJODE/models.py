@@ -12,6 +12,7 @@ import numpy as np
 
 # =====================================================================================================================
 import torch
+from configs.dataset_configs import zero_pen_func
 
 
 # =====================================================================================================================
@@ -1189,25 +1190,23 @@ class NJODE_convex_projection(NJODE):
     ):
         # TODO definitely don't need a bunch of these, same with other models
         super().__init__(
-            input_size,
-            hidden_size,
-            output_size,
-            ode_nn,
-            readout_nn,
-            enc_nn,
-            use_rnn,
-            in_shape_func,
-            penalising_func,
-            lmbda,
-            bias,
-            dropout_rate,
-            solver,
-            weight,
-            weight_decay,
+            input_size=input_size,
+            hidden_size=hidden_size,
+            output_size=output_size,
+            ode_nn=ode_nn,
+            readout_nn=readout_nn,
+            enc_nn=enc_nn,
+            use_rnn=use_rnn,
+            in_shape_func=in_shape_func,
+            penalising_func=penalising_func,
+            lmbda=lmbda,
+            bias=bias,
+            dropout_rate=dropout_rate,
+            solver=solver,
+            weight=weight,
+            weight_decay=weight_decay,
             **options,
         )
-        self.penalising_func = penalising_func
-        self.lmbda = lmbda
         self.project = project
 
     def full_readout(self, h):
@@ -1237,18 +1236,21 @@ class NJODE_vertex_approach(NJODE):
         **options,
     ):
         super().__init__(
-            input_size,
-            hidden_size,
-            len(vertices),
-            ode_nn,
-            readout_nn,
-            enc_nn,
-            use_rnn,
-            bias,
-            dropout_rate,
-            solver,
-            weight,
-            weight_decay,
+            input_size=input_size,
+            hidden_size=hidden_size,
+            output_size=len(vertices),
+            ode_nn=ode_nn,
+            readout_nn=readout_nn,
+            enc_nn=enc_nn,
+            use_rnn=use_rnn,
+            in_shape_func=lambda l: [True for _ in l],
+            penalising_func=zero_pen_func,
+            lmbda=0,
+            bias=bias,
+            dropout_rate=dropout_rate,
+            solver=solver,
+            weight=weight,
+            weight_decay=weight_decay,
             **options,
         )
         self.vertices = vertices  # tensor shape (1, num, d_X)
@@ -1256,283 +1258,13 @@ class NJODE_vertex_approach(NJODE):
         assert vertices.shape[1] == input_size
 
         # Hack to do the final projection/application of convex combination
-        old_forward = self.readout_map.forward
+        old_readout_forward = self.readout_map.forward
 
-        def new_forward(x):
-            first = old_forward(x)
-            weights = torch.nn.Softmax(dim=1)(first)
+        def new_readout_forward(x):
+            raw_out = old_readout_forward(x)
+            weights = torch.nn.Softmax(dim=1)(raw_out)
             as_point = torch.matmul(weights, self.vertices)
 
             return as_point
 
-        self.readout_map.forward = new_forward
-
-    def forward(
-        self,
-        times,
-        time_ptr,
-        X,
-        obs_idx,
-        delta_t,
-        T,
-        start_X,
-        n_obs_ot,
-        return_path=False,
-        get_loss=True,
-        until_T=False,
-        M=None,
-        start_M=None,
-        dim_to=None,
-        return_at_last_obs=False,
-    ):
-        """
-        the forward run of this module class, used when calling the module
-        instance without a method
-        :param times: np.array, of observation times
-        :param time_ptr: list, start indices of X and obs_idx for a given
-                observation time, first element is 0, this pointer tells how
-                many (and which) of the observations of X along the batch-dim
-                belong to the current time, and obs_idx then tells to which of
-                the batch elements they belong. In particular, not each batch-
-                element has to jump at the same time, and only those elements
-                which jump at the current time should be updated with a jump
-        :param X: torch.tensor, data tensor
-        :param obs_idx: list, index of the batch elements where jumps occur at
-                current time
-        :param delta_t: float, time step for Euler
-        :param T: float, the final time
-        :param start_X: torch.tensor, the starting point of X
-        :param n_obs_ot: torch.tensor, the number of observations over the
-                entire time interval for each element of the batch
-        :param return_path: bool, whether to return the path of h
-        :param get_loss: bool, whether to compute the loss, otherwise 0 returned
-        :param until_T: bool, whether to continue until T (for eval) or only
-                until last observation (for training)
-        :param M: None or torch.tensor, if not None: the mask for the data, same
-                size as X, with 0 or 1 entries
-        :param start_M: None or torch.tensor, if not None: the mask for start_X,
-                same size as start_X
-        :param which_loss: see train.train, to overwrite which loss for eval
-        :param dim_to: None or int, if given not all coordinates along the
-                data-dimension axis are used but only up to dim_to. this can be
-                used if func_appl_X is used in train, but the loss etc. should
-                only be computed for the original coordinates (without those
-                resulting from the function applications)
-        :param predict_labels: None or torch.tensor with the true labels to
-                predict
-        :param return_classifier_out: bool, whether to return the output of the
-                classifier
-        :return: torch.tensor (hidden state at final time), torch.tensor (loss),
-                    if wanted the paths of t (np.array) and h, y (torch.tensors)
-        """
-        last_X = start_X
-        batch_size = start_X.size()[0]
-        data_dim = start_X.size()[1]
-        if dim_to is None:
-            dim_to = data_dim
-        if self.coord_wise_tau:
-            tau = torch.tensor([[0.0]]).repeat(batch_size, data_dim).to(self.device)
-        else:
-            tau = torch.tensor([[0.0]]).repeat(batch_size, 1).to(self.device)
-        current_time = 0.0
-        loss = 0
-        c_sig = None
-
-        if self.input_sig:
-            if self.masked:
-                Mdc = M.clone()
-                Mdc[Mdc == 0] = np.nan
-                X_obs_impute = X * Mdc
-                signature = self.get_signature(
-                    times=times,
-                    time_ptr=time_ptr,
-                    X=X_obs_impute,
-                    obs_idx=obs_idx,
-                    start_X=start_X,
-                )
-            else:
-                signature = self.get_signature(
-                    times=times,
-                    time_ptr=time_ptr,
-                    X=X,
-                    obs_idx=obs_idx,
-                    start_X=start_X,
-                )
-
-            # in beginning, no path was observed => set sig to 0
-            current_sig = np.zeros((batch_size, self.sig_depth))
-            current_sig_nb = np.zeros(batch_size).astype(int)
-            c_sig = torch.from_numpy(current_sig).float().to(self.device)
-
-        if self.masked:
-            if start_M is None:
-                start_M = torch.ones_like(start_X)
-        else:
-            start_M = None
-
-        h = self.encoder_map(
-            start_X,
-            mask=start_M,
-            sig=c_sig,
-            h=torch.zeros((batch_size, self.hidden_size)).to(self.device),
-            t=torch.cat((tau, current_time - tau), dim=1).to(self.device),
-        )
-
-        if return_path:
-            path_t = [0]
-            path_h = [h]
-            path_y = [self.readout_map(h)]
-        h_at_last_obs = h.clone()
-        sig_at_last_obs = c_sig
-
-        assert len(times) + 1 == len(time_ptr)
-
-        for i, obs_time in enumerate(times):
-            # Propagation of the ODE until next observation
-            while current_time < (
-                obs_time - 1e-10 * delta_t
-            ):  # 0.0001 delta_t used for numerical consistency.
-                if current_time < obs_time - delta_t:
-                    delta_t_ = delta_t
-                else:
-                    delta_t_ = obs_time - current_time
-                if self.solver == "euler":
-                    h, current_time = self.ode_step(
-                        h,
-                        delta_t_,
-                        current_time,
-                        last_X=last_X,
-                        tau=tau,
-                        signature=c_sig,
-                    )
-                    current_time_nb = int(round(current_time / delta_t))
-                else:
-                    raise NotImplementedError
-
-                # Storing the predictions.
-                if return_path:
-                    path_t.append(current_time)
-                    path_h.append(h)
-                    path_y.append(self.readout_map(h))
-
-            # Reached an observation - only update those elements of the batch,
-            #    for which an observation is made
-            start = time_ptr[i]
-            end = time_ptr[i + 1]
-            X_obs = X[start:end]
-            i_obs = obs_idx[start:end]
-            if self.masked:
-                if isinstance(M, np.ndarray):
-                    M_obs = torch.from_numpy(M[start:end]).to(self.device)
-                else:
-                    M_obs = M[start:end]
-            else:
-                M_obs = None
-
-            # update signature
-            if self.input_sig:
-                for j in i_obs:
-                    current_sig[j, :] = signature[j][current_sig_nb[j]]
-                current_sig_nb[i_obs] += 1
-                c_sig = torch.from_numpy(current_sig).float().to(self.device)
-
-            # Using RNNCell to update h. Also updating loss, tau and last_X
-            Y_bj = self.readout_map(h)
-            X_obs_impute = X_obs
-            temp = h.clone()
-            if self.masked:
-                X_obs_impute = (
-                    X_obs * M_obs
-                    + (torch.ones_like(M_obs.long()) - M_obs) * Y_bj[i_obs.long()]
-                )
-            c_sig_iobs = None
-            if self.input_sig:
-                c_sig_iobs = c_sig[i_obs]
-
-            temp[i_obs.long()] = self.encoder_map(
-                X_obs_impute,
-                mask=M_obs,
-                sig=c_sig_iobs,
-                h=h[i_obs],
-                t=torch.cat((tau[i_obs], current_time - tau[i_obs]), dim=1),
-            )
-            h = temp
-            Y = self.readout_map(h)
-
-            # update h and sig at last observation
-            h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
-            sig_at_last_obs = c_sig
-
-            if get_loss:
-                loss += compute_loss(
-                    X_obs=X_obs[:, :dim_to],
-                    Y_obs=Y[i_obs.long(), :dim_to],
-                    Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                    n_obs_ot=n_obs_ot[i_obs.long()],
-                    batch_size=batch_size,
-                    weight=self.weight,
-                    M_obs=M_obs,
-                )
-
-            # make update of last_X and tau, that is not inplace
-            #    (otherwise problems in autograd)
-            temp_X = last_X.clone()
-            temp_tau = tau.clone()
-            if self.masked and self.use_y_for_ode:
-                temp_X[i_obs.long()] = Y[i_obs.long()]
-            else:
-                temp_X[i_obs.long()] = X_obs_impute
-            if self.coord_wise_tau:
-                _M = torch.zeros_like(temp_tau)
-                _M[i_obs] = M_obs
-                temp_tau[_M == 1] = obs_time.astype(np.float64)
-            else:
-                temp_tau[i_obs.long()] = obs_time.astype(np.float64)
-            last_X = temp_X
-            tau = temp_tau
-
-            if return_path:
-                path_t.append(obs_time)
-                path_h.append(h)
-                path_y.append(Y)
-
-        # after every observation has been processed, propagating until T
-        if until_T:
-            if self.input_sig:
-                c_sig = torch.from_numpy(current_sig).float().to(self.device)
-            while current_time < T - 1e-10 * delta_t:
-                if current_time < T - delta_t:
-                    delta_t_ = delta_t
-                else:
-                    delta_t_ = T - current_time
-                if self.solver == "euler":
-                    h, current_time = self.ode_step(
-                        h,
-                        delta_t_,
-                        current_time,
-                        last_X=last_X,
-                        tau=tau,
-                        signature=c_sig,
-                    )
-                else:
-                    raise NotImplementedError
-
-                # Storing the predictions.
-                if return_path:
-                    path_t.append(current_time)
-                    path_h.append(h)
-                    path_y.append(self.readout_map(h))
-
-        if return_at_last_obs:
-            return h_at_last_obs, sig_at_last_obs
-        if return_path:
-            # path dimension: [time_steps, batch_size, output_size]
-            return (
-                h,
-                loss,
-                np.array(path_t),
-                torch.stack(path_h),
-                torch.stack(path_y)[:, :, :dim_to],
-            )
-        else:
-            return h, loss
+        self.readout_map.forward = new_readout_forward
