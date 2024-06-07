@@ -806,7 +806,7 @@ class NJODE(torch.nn.Module):
         if return_path:
             path_t = [0]
             path_h = [h]
-            path_y = [self.readout_map(h)]
+            path_y = [self.full_readout(h)]
         h_at_last_obs = h.clone()
         sig_at_last_obs = c_sig
 
@@ -829,13 +829,13 @@ class NJODE(torch.nn.Module):
                         last_X=last_X,
                         tau=tau,
                         signature=c_sig,
-                        current_y=self.readout_map(h),
+                        current_y=self.full_readout(h),
                     )
                     current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
 
-                isin = self.in_shape_func(self.readout_map(h))
+                isin = self.in_shape_func(self.full_readout(h))
                 num_in += isin.count(True)
                 num_out += isin.count(False)
                 loss += self.additional_term(h, batch_size, delta_t)
@@ -844,7 +844,7 @@ class NJODE(torch.nn.Module):
                 if return_path:
                     path_t.append(current_time)
                     path_h.append(h)
-                    path_y.append(self.readout_map(h))
+                    path_y.append(self.full_readout(h))
 
             # Reached an observation - only update those elements of the batch,
             #    for which an observation is made
@@ -875,7 +875,7 @@ class NJODE(torch.nn.Module):
                     c_sig = torch.from_numpy(current_sig).float().to(self.device)
 
             # Using RNNCell to update h. Also updating loss, tau and last_X
-            Y_bj = self.readout_map(h)
+            Y_bj = self.full_readout(h)
             if use_as_input:
                 X_obs_impute = X_obs
                 temp = h.clone()
@@ -896,13 +896,13 @@ class NJODE(torch.nn.Module):
                     t=torch.cat((tau[i_obs], current_time - tau[i_obs]), dim=1),
                 )
                 h = temp
-                Y = self.readout_map(h)
+                Y = self.full_readout(h)
 
                 # update h and sig at last observation
                 h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
                 sig_at_last_obs = c_sig
 
-                isin = self.in_shape_func(self.readout_map(h))
+                isin = self.in_shape_func(self.full_readout(h))
                 num_in += isin.count(True)
                 num_out += isin.count(False)
             else:
@@ -957,12 +957,12 @@ class NJODE(torch.nn.Module):
                         last_X=last_X,
                         tau=tau,
                         signature=c_sig,
-                        current_y=self.readout_map(h),
+                        current_y=self.full_readout(h),
                     )
                 else:
                     raise NotImplementedError
 
-                isin = self.in_shape_func(self.readout_map(h))
+                isin = self.in_shape_func(self.full_readout(h))
                 num_in += isin.count(True)
                 num_out += isin.count(False)
                 loss += self.additional_term(h, batch_size, delta_t)
@@ -971,7 +971,7 @@ class NJODE(torch.nn.Module):
                 if return_path:
                     path_t.append(current_time)
                     path_h.append(h)
-                    path_y.append(self.readout_map(h))
+                    path_y.append(self.full_readout(h))
 
         if return_at_last_obs:
             return h_at_last_obs, sig_at_last_obs
@@ -1149,10 +1149,15 @@ class NJODE(torch.nn.Module):
 
     def additional_term(self, h, batch_size, delta_t):
         # Return it if needed and supported, otherwise just return 0
-        if hasattr(self, "lmbda") and self.lmbda > 0:
+        # TODO make thiis more elegant
+        if hasattr(self, "lmbda") and self.lmbda is not None and self.lmbda > 0:
             point_loss = self.lmbda * self.penalising_func(self.readout_map(h))
             return (1 / batch_size) * (delta_t * torch.sum(point_loss))
         return 0
+
+    def full_readout(self, h):
+        # Quick hack to make it easier for the convex projection model
+        return self.readout_map(h)
 
 
 class NJODE_convex_projection(NJODE):
@@ -1313,12 +1318,13 @@ class NJODE_convex_projection(NJODE):
             mask=start_M,
             sig=c_sig,
             h=torch.zeros((batch_size, self.hidden_size)),
+            t=torch.cat((tau, current_time - tau), dim=1).to(self.device),
         )
 
         if return_path:
             path_t = [0]
             path_h = [h]
-            path_y = [self.project(self.readout_map(h))]
+            path_y = [self.full_readout(h)]
         h_at_last_obs = h.clone()
         sig_at_last_obs = c_sig
 
@@ -1355,7 +1361,7 @@ class NJODE_convex_projection(NJODE):
                 if return_path:
                     path_t.append(current_time)
                     path_h.append(h)
-                    path_y.append(self.project(self.readout_map(h)))
+                    path_y.append(self.full_readout(h))
 
             # Reached an observation - only update those elements of the batch,
             #    for which an observation is made
@@ -1379,10 +1385,7 @@ class NJODE_convex_projection(NJODE):
                 c_sig = torch.from_numpy(current_sig).float()
 
             # Using RNNCell to update h. Also updating loss, tau and last_X
-            Y_bj_before_proj = self.readout_map(h)
-            Y_bj = self.project(
-                Y_bj_before_proj
-            )  # TODO don't need the before jumps anymore
+            Y_bj = self.full_readout(h)
             X_obs_impute = X_obs
             temp = h.clone()
             if self.masked:
@@ -1402,14 +1405,13 @@ class NJODE_convex_projection(NJODE):
                 t=torch.cat((tau[i_obs], current_time - tau[i_obs]), dim=1),
             )
             h = temp
-            Y_before_proj = self.readout_map(h)
-            Y = self.project(Y_before_proj)
+            Y = self.full_readout(h)
 
             # update h and sig at last observation
             h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
             sig_at_last_obs = c_sig
 
-            isin = self.in_shape_func(Y_before_proj)
+            isin = self.in_shape_func(self.readout_map(h))
             num_in += isin.count(True)
             num_out += isin.count(False)
 
@@ -1476,7 +1478,7 @@ class NJODE_convex_projection(NJODE):
                 if return_path:
                     path_t.append(current_time)
                     path_h.append(h)
-                    path_y.append(self.project(self.readout_map(h)))
+                    path_y.append(self.full_readout(h))
 
         if return_at_last_obs:
             return h_at_last_obs, sig_at_last_obs
@@ -1491,6 +1493,9 @@ class NJODE_convex_projection(NJODE):
             )
         else:
             return h, loss, num_in, num_out
+
+    def full_readout(self, h):
+        return self.project(self.readout_map(h))
 
 
 class NJODE_vertex_approach(NJODE):
@@ -1654,6 +1659,7 @@ class NJODE_vertex_approach(NJODE):
             mask=start_M,
             sig=c_sig,
             h=torch.zeros((batch_size, self.hidden_size)).to(self.device),
+            t=torch.cat((tau, current_time - tau), dim=1).to(self.device),
         )
 
         if return_path:

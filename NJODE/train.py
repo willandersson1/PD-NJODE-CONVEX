@@ -548,7 +548,7 @@ def train(
     if "other_model" not in options:  # take NJODE model if not specified otherwise
         params_dict["in_shape_func"] = dataset_configs.IN_SHAPE_FUNCS[data_dict]
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
-        params_dict["lmbda"] = options["lmbda"]
+        params_dict["lmbda"] = options["lmbda"] if "lmbda" in options else None
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = "NJODE"
     elif options["other_model"] == "optimal_projection":
