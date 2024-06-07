@@ -835,7 +835,9 @@ class NJODE(torch.nn.Module):
                 else:
                     raise NotImplementedError
 
-                isin = self.in_shape_func(self.full_readout(h))
+                # NOTE: here (and elsewhere when checking isin) using the "vanilla"
+                #  self.readout_map instead of the new one. This is correct!
+                isin = self.in_shape_func(self.readout_map(h))
                 num_in += isin.count(True)
                 num_out += isin.count(False)
                 loss += self.additional_term(h, batch_size, delta_t)
@@ -902,7 +904,7 @@ class NJODE(torch.nn.Module):
                 h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
                 sig_at_last_obs = c_sig
 
-                isin = self.in_shape_func(self.full_readout(h))
+                isin = self.in_shape_func(self.readout_map(h))
                 num_in += isin.count(True)
                 num_out += isin.count(False)
             else:
@@ -962,7 +964,7 @@ class NJODE(torch.nn.Module):
                 else:
                     raise NotImplementedError
 
-                isin = self.in_shape_func(self.full_readout(h))
+                isin = self.in_shape_func(self.readout_map(h))
                 num_in += isin.count(True)
                 num_out += isin.count(False)
                 loss += self.additional_term(h, batch_size, delta_t)
