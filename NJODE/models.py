@@ -394,6 +394,7 @@ class NJODE(torch.nn.Module):
         readout_nn,
         enc_nn,
         use_rnn,
+        in_shape_func,
         penalising_func,
         lmbda=0,
         bias=True,
@@ -440,6 +441,7 @@ class NJODE(torch.nn.Module):
 
         # get options from the options of train input
         options1 = options["options"]
+        self.in_shape_func = in_shape_func
         self.lmbda = lmbda
         self.penalising_func = penalising_func
 
@@ -759,6 +761,7 @@ class NJODE(torch.nn.Module):
         current_time = 0.0
         loss = torch.tensor(0.0).to(self.device)
         c_sig = None
+        num_in, num_out = 0, 0
 
         if self.input_sig:
             if self.masked:
@@ -799,8 +802,6 @@ class NJODE(torch.nn.Module):
             h=torch.zeros((batch_size, self.hidden_size)).to(self.device),
             t=torch.cat((tau, current_time - tau), dim=1).to(self.device),
         )
-        # if self.encoder_map.use_lstm:
-        #     self.c_ = torch.chunk(h.clone(), chunks=2, dim=1)[1]
 
         if return_path:
             path_t = [0]
@@ -833,7 +834,10 @@ class NJODE(torch.nn.Module):
                     current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
-            
+
+                isin = self.in_shape_func(self.readout_map(h))
+                num_in += isin.count(True)
+                num_out += isin.count(False)
                 loss += self.additional_term(h, batch_size, delta_t)
 
                 # Storing the predictions.
@@ -883,8 +887,7 @@ class NJODE(torch.nn.Module):
                 c_sig_iobs = None
                 if self.input_sig:
                     c_sig_iobs = c_sig[i_obs]
-                # if self.encoder_map.use_lstm:
-                #     h[:, self.hidden_size//2:] = self.c_
+
                 temp[i_obs.long()] = self.encoder_map(
                     X_obs_impute,
                     mask=M_obs,
@@ -893,13 +896,15 @@ class NJODE(torch.nn.Module):
                     t=torch.cat((tau[i_obs], current_time - tau[i_obs]), dim=1),
                 )
                 h = temp
-                # if self.encoder_map.use_lstm:
-                #     self.c_ = torch.chunk(h.clone(), chunks=2, dim=1)[1]
                 Y = self.readout_map(h)
 
                 # update h and sig at last observation
                 h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
                 sig_at_last_obs = c_sig
+
+                isin = self.in_shape_func(self.readout_map(h))
+                num_in += isin.count(True)
+                num_out += isin.count(False)
             else:
                 Y = Y_bj
 
@@ -937,21 +942,6 @@ class NJODE(torch.nn.Module):
                 path_h.append(h)
                 path_y.append(Y)
 
-        # after last observation has been processed, apply classifier if wanted
-        cl_out = None
-        if self.classifier is not None and predict_labels is not None:
-            cl_loss = torch.tensor(0.0)
-            cl_input = h_at_last_obs
-            if self.use_sig_for_classifier:
-                cl_input = torch.cat([cl_input, sig_at_last_obs], dim=1)
-            cl_out = self.classifier(cl_input)
-            cl_loss = cl_loss + self.CEL(input=cl_out, target=predict_labels[:, 0])
-            loss = [
-                self.loss_weight * loss + self.class_loss_weight * cl_loss,
-                loss,
-                cl_loss,
-            ]
-
         # after every observation has been processed, propagating until T
         if until_T:
             while current_time < T - 1e-10 * delta_t:
@@ -972,6 +962,11 @@ class NJODE(torch.nn.Module):
                 else:
                     raise NotImplementedError
 
+                isin = self.in_shape_func(self.readout_map(h))
+                num_in += isin.count(True)
+                num_out += isin.count(False)
+                loss += self.additional_term(h, batch_size, delta_t)
+
                 # Storing the predictions.
                 if return_path:
                     path_t.append(current_time)
@@ -982,15 +977,7 @@ class NJODE(torch.nn.Module):
             return h_at_last_obs, sig_at_last_obs
         if return_path:
             # path dimension: [time_steps, batch_size, output_size]
-            if return_classifier_out:
-                return (
-                    h,
-                    loss,
-                    np.array(path_t),
-                    torch.stack(path_h),
-                    torch.stack(path_y)[:, :, :dim_to],
-                    cl_out,
-                )
+            # TODO note the output is different if returning the path
             return (
                 h,
                 loss,
@@ -999,9 +986,7 @@ class NJODE(torch.nn.Module):
                 torch.stack(path_y)[:, :, :dim_to],
             )
         else:
-            if return_classifier_out and self.classifier is not None:
-                return h, loss, cl_out
-            return h, loss
+            return h, loss, num_in, num_out
 
     def evaluate(
         self,
@@ -1134,6 +1119,7 @@ class NJODE(torch.nn.Module):
         :param start_M: see forward
         :return: dict, with prediction y and times t
         """
+        # TODO this might be problematic
         self.eval()
         _, _, path_t, path_h, path_y = self.forward(
             times=times,
@@ -1160,12 +1146,11 @@ class NJODE(torch.nn.Module):
             cl_out = self.classifier(x)
             cl_loss = self.CEL(input=cl_out, target=y)
         return cl_loss, cl_out
-    
+
     def additional_term(self, h, batch_size, delta_t):
         # Return it if needed and supported, otherwise just return 0
         if hasattr(self, "lmbda") and self.lmbda > 0:
             point_loss = self.lmbda * self.penalising_func(self.readout_map(h))
-            print(point_loss)
             return (1 / batch_size) * (delta_t * torch.sum(point_loss))
         return 0
 
@@ -1184,6 +1169,7 @@ class NJODE_convex_projection(NJODE):
         readout_nn,
         enc_nn,
         use_rnn,
+        in_shape_func,
         penalising_func,
         project,
         lmbda=0,
@@ -1203,6 +1189,7 @@ class NJODE_convex_projection(NJODE):
             readout_nn,
             enc_nn,
             use_rnn,
+            in_shape_func,
             penalising_func,
             lmbda,
             bias,
@@ -1286,6 +1273,7 @@ class NJODE_convex_projection(NJODE):
         current_time = 0.0
         loss = 0
         c_sig = None
+        num_in, num_out = 0, 0
 
         # TODO I think this will be removed
         if self.input_sig:
@@ -1357,7 +1345,10 @@ class NJODE_convex_projection(NJODE):
                     current_time_nb = int(round(current_time / delta_t))
                 else:
                     raise NotImplementedError
-                
+
+                isin = self.in_shape_func(self.readout_map(h))
+                num_in += isin.count(True)
+                num_out += isin.count(False)
                 loss += self.additional_term(h, batch_size, delta_t)
 
                 # Storing the predictions.
@@ -1389,7 +1380,9 @@ class NJODE_convex_projection(NJODE):
 
             # Using RNNCell to update h. Also updating loss, tau and last_X
             Y_bj_before_proj = self.readout_map(h)
-            Y_bj = self.project(Y_bj_before_proj)
+            Y_bj = self.project(
+                Y_bj_before_proj
+            )  # TODO don't need the before jumps anymore
             X_obs_impute = X_obs
             temp = h.clone()
             if self.masked:
@@ -1416,16 +1409,20 @@ class NJODE_convex_projection(NJODE):
             h_at_last_obs[i_obs.long()] = h[i_obs.long()].clone()
             sig_at_last_obs = c_sig
 
+            isin = self.in_shape_func(Y_before_proj)
+            num_in += isin.count(True)
+            num_out += isin.count(False)
+
             if get_loss:
                 loss += compute_loss(
-                        X_obs=X_obs[:, :dim_to],
-                        Y_obs=Y[i_obs.long(), :dim_to],
-                        Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
-                        n_obs_ot=n_obs_ot[i_obs.long()],
-                        batch_size=batch_size,
-                        weight=self.weight,
-                        M_obs=M_obs,
-                    )
+                    X_obs=X_obs[:, :dim_to],
+                    Y_obs=Y[i_obs.long(), :dim_to],
+                    Y_obs_bj=Y_bj[i_obs.long(), :dim_to],
+                    n_obs_ot=n_obs_ot[i_obs.long()],
+                    batch_size=batch_size,
+                    weight=self.weight,
+                    M_obs=M_obs,
+                )
 
             # make update of last_X and tau, that is not inplace
             #    (otherwise problems in autograd)
@@ -1470,6 +1467,11 @@ class NJODE_convex_projection(NJODE):
                 else:
                     raise NotImplementedError
 
+                isin = self.in_shape_func(self.readout_map(h))
+                num_in += isin.count(True)
+                num_out += isin.count(False)
+                loss += self.additional_term(h, batch_size, delta_t)
+
                 # Storing the predictions.
                 if return_path:
                     path_t.append(current_time)
@@ -1488,7 +1490,7 @@ class NJODE_convex_projection(NJODE):
                 torch.stack(path_y)[:, :, :dim_to],
             )
         else:
-            return h, loss
+            return h, loss, num_in, num_out
 
 
 class NJODE_vertex_approach(NJODE):

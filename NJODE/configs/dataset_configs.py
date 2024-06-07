@@ -400,3 +400,79 @@ def ball2D_pen_func(data_dict):
 
 def zero_pen_func(Y):
     return torch.norm(Y - Y, 2, dim=1)
+
+
+def RBM_in_shape(RBM_data_dict_name):
+    lb = DATA_DICTS[RBM_data_dict_name]["lb"]
+    ub = DATA_DICTS[RBM_data_dict_name]["ub"]
+
+    def check(Y):
+        res = []
+        for pred in Y:
+            if lb <= pred and pred <= ub:
+                res.append(True)
+            else:
+                res.append(False)
+        return res
+
+    return check
+
+
+def rect_in_shape(rect_data_dict_name):
+    data_dict = DATA_DICTS[rect_data_dict_name]
+    lb_x, ub_x, lb_y, ub_y = get_rectangle_bounds(
+        data_dict["width"], data_dict["length"]
+    )
+
+    def check(Y):
+        res = []
+        for pred in Y:
+            if (
+                lb_x <= pred[0]
+                and pred[0] <= ub_x
+                and lb_y <= pred[1]
+                and pred[1] <= ub_y
+            ):
+                res.append(True)
+            else:
+                res.append(False)
+        return res
+
+    return check
+
+
+def simplex_in_shape(Y):
+    res = []
+    for pred in Y:
+        if all(y_i >= 0 for y_i in pred):
+            sums_to_1 = torch.isclose(torch.sum(pred), torch.tensor(1.0))
+            res.append(bool(sums_to_1))
+        else:
+            res.append(False)
+    return res
+
+
+def ball2D_in_shape(ball2d_data_dict_name):
+    R = DATA_DICTS[ball2d_data_dict_name]["max_radius"]
+
+    def check(Y):
+        res = [torch.norm(pred, 2) <= R for pred in Y]
+        return res
+
+    return check
+
+
+IN_SHAPE_FUNCS = {
+    "RBM_1_dict": RBM_in_shape("RBM_1_dict"),
+    "RBM_STANDARD": RBM_in_shape("RBM_STANDARD"),
+    "RBM_MORE_BOUNCES": RBM_in_shape("RBM_MORE_BOUNCES"),
+    "Rectangle_1_dict": rect_in_shape("Rectangle_1_dict"),
+    "RECTANGLE_STANDARD": rect_in_shape("RECTANGLE_STANDARD"),
+    "RECTANGLE_WIDER_WITH_MU": rect_in_shape("RECTANGLE_WIDER_WITH_MU"),
+    "BM_WEIGHTS_RECTANGLE_STANDARD": rect_in_shape("RECTANGLE_STANDARD"),
+    "BM_WEIGHTS_SIMPLEX2D": simplex_in_shape,
+    "BM_WEIGHTS_SIMPLEX3D": simplex_in_shape,
+    "Ball2D_BM_1_dict": ball2D_in_shape("Ball2D_BM_1_dict"),
+    "BALL2D_STANDARD": ball2D_in_shape("BALL2D_STANDARD"),
+    "BALL2D_LARGE": ball2D_in_shape("BALL2D_LARGE"),
+}

@@ -60,6 +60,7 @@ METR_COLUMNS: List[str] = [
     "train_loss",
     "eval_loss",
     "optimal_eval_loss",
+    "pct_in",
 ]
 default_ode_nn = ((50, "tanh"), (50, "tanh"))
 default_readout_nn = ((50, "tanh"), (50, "tanh"))
@@ -545,11 +546,13 @@ def train(
     # get the model & optimizer
     # TODO fix this up. also lmda isn't in every config.
     if "other_model" not in options:  # take NJODE model if not specified otherwise
+        params_dict["in_shape_func"] = dataset_configs.IN_SHAPE_FUNCS[data_dict]
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["lmbda"] = options["lmbda"]
         model = models.NJODE(**params_dict)  # get NJODE model class from
         model_name = "NJODE"
     elif options["other_model"] == "optimal_projection":
+        params_dict["in_shape_func"] = dataset_configs.IN_SHAPE_FUNCS[data_dict]
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["project"] = dataset_configs.OPTIMAL_PROJECTION_FUNCS[data_dict]
         params_dict["lmbda"] = options["lmbda"]
@@ -677,6 +680,7 @@ def train(
 
     metric_app = []
     while model.epoch <= epochs:
+        num_in, num_out = 0, 0  # TODO init earlier?
         t = time.time()  # return the time in seconds since the epoch
         model.train()
         for i, b in tqdm.tqdm(enumerate(dl)):  # iterate over the dataloader
@@ -694,8 +698,8 @@ def train(
             start_X = b["start_X"].to(device)
             obs_idx = b["obs_idx"]
             n_obs_ot = b["n_obs_ot"].to(device)
-
-            hT, loss = model(
+            # TODO actually this pct in is just for  a batch so will need to add it or w/e to get a total for the epoch
+            hT, loss, n_in, n_out = model(
                 times=times,
                 time_ptr=time_ptr,
                 X=X,
@@ -710,12 +714,18 @@ def train(
                 start_M=start_M,
             )
 
+            num_in += n_in
+            num_out += n_out
+
             loss.backward()  # compute gradient of each weight regarding loss function
             if gradient_clip is not None:
                 nn.utils.clip_grad_value_(model.parameters(), clip_value=gradient_clip)
             optimizer.step()  # update weights by ADAM optimizer
             if ANOMALY_DETECTION:
                 print(r"current loss: {}".format(loss.detach().numpy()))
+        pct_in = num_in / (
+            num_in + num_out
+        )  # TODO I'm sure I can calculate this without needing num_out
 
         train_time = time.time() - t  # difference between current time and start time
 
@@ -748,12 +758,13 @@ def train(
                 true_paths = b["true_paths"]
                 true_mask = b["true_mask"]
 
+                # TODO can remove this, also above stuff probably
                 if "other_model" not in options or model_name in (
                     "vertex_approach",
                     "convex_projection",
                     "NJmodel",
                 ):
-                    hT, c_loss = model(
+                    hT, c_loss, _, _ = model(
                         times,
                         time_ptr,
                         X,
@@ -777,7 +788,7 @@ def train(
                 #   -> this can be compared to the optimal-eval-loss
                 if mult is not None and mult > 1:
                     if "other_model" not in options:
-                        hT_corrected, c_loss_corrected = model(
+                        hT_corrected, c_loss_corrected, _, _ = model(
                             times,
                             time_ptr,
                             X,
@@ -866,6 +877,7 @@ def train(
                     train_loss,
                     loss_val,
                     opt_eval_loss,
+                    pct_in,
                     eval_msd,
                 ]
             )
@@ -879,6 +891,7 @@ def train(
                     train_loss,
                     loss_val,
                     opt_eval_loss,
+                    pct_in,
                 ]
             )
 
