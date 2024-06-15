@@ -195,7 +195,7 @@ def get_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ_config():
     models_path = "{}saved_models_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ/".format(data_path)
     param_list = []
     param_dict = {
-        "epochs": [100],  # TODO revert this
+        "epochs": [200],
         "batch_size": [200],
         "save_every": [20],
         "learning_rate": [0.001],

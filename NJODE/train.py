@@ -55,7 +55,8 @@ METR_COLUMNS: List[str] = [
     "train_loss",
     "eval_loss",
     "optimal_eval_loss",
-    "pct_in",
+    "pct_in_loss",
+    "pct_in_eval",
 ]
 default_ode_nn = ((50, "tanh"), (50, "tanh"))
 default_readout_nn = ((50, "tanh"), (50, "tanh"))
@@ -643,7 +644,7 @@ def train(
 
     metric_app = []
     while model.epoch <= epochs:
-        num_in, num_out = 0, 0  # TODO init earlier?
+        num_in_loss, num_out_loss = 0, 0  # TODO init earlier?
         t = time.time()  # return the time in seconds since the epoch
         model.train()
         for i, b in tqdm.tqdm(enumerate(dl)):  # iterate over the dataloader
@@ -677,16 +678,13 @@ def train(
                 start_M=start_M,
             )
 
-            num_in += n_in
-            num_out += n_out
+            num_in_loss += n_in
+            num_out_loss += n_out
 
             loss.backward()  # compute gradient of each weight regarding loss function
             if gradient_clip is not None:
                 nn.utils.clip_grad_value_(model.parameters(), clip_value=gradient_clip)
             optimizer.step()  # update weights by ADAM optimizer
-        pct_in = num_in / (
-            num_in + num_out
-        )  # TODO I'm sure I can calculate this without needing num_out
 
         train_time = time.time() - t  # difference between current time and start time
 
@@ -700,6 +698,7 @@ def train(
             num_obs = 0
             eval_msd = 0
             model.eval()  # set model in evaluation mode
+            num_in_eval, num_out_eval = 0, 0
             for i, b in enumerate(dl_val):  # iterate over dataloader for validation set
                 if plot:
                     batch = b
@@ -717,7 +716,7 @@ def train(
                 true_paths = b["true_paths"]
                 true_mask = b["true_mask"]
 
-                hT, c_loss, _, _ = model(
+                hT, c_loss, n_in, n_out = model(
                     times,
                     time_ptr,
                     X,
@@ -733,6 +732,9 @@ def train(
                 )
                 loss_val += c_loss.detach().numpy()
                 num_obs += 1  # count number of observations
+
+                num_in_eval += n_in
+                num_out_eval += n_out
 
                 # if functions are applied, also compute the loss when only
                 #   using the coordinates where function was not applied
@@ -804,6 +806,11 @@ def train(
             loss_val = loss_val / num_obs
             loss_val_corrected /= num_obs
             eval_msd = eval_msd / num_obs
+            # TODO remove one of these
+            pct_in_loss = num_in_loss / (
+                num_in_loss + num_out_loss
+            )  # TODO I'm sure I can calculate this without needing num_out
+            pct_in_eval = num_in_eval / (num_in_eval + num_out_eval)
             train_loss = loss.detach().numpy()
             print_str = (
                 "epoch {}, weight={:.5f}, train-loss={:.5f}, "
@@ -826,7 +833,8 @@ def train(
                     train_loss,
                     loss_val,
                     opt_eval_loss,
-                    pct_in,
+                    pct_in_loss,
+                    pct_in_eval,
                     eval_msd,
                 ]
             )
@@ -840,7 +848,8 @@ def train(
                     train_loss,
                     loss_val,
                     opt_eval_loss,
-                    pct_in,
+                    pct_in_loss,
+                    pct_in_eval,
                 ]
             )
 
