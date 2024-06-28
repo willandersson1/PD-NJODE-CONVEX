@@ -99,7 +99,7 @@ python run.py --params=param_list_BM_WEIGHTS_SIMPLEX2D_VERTEX_APPROACH --get_ove
 
 This will create a new folder with an appropriate name that will store the results, along with plots, metrics, checkpoints, etc.
 
-The other flags you can use as follows, although they are also documented in the code. Additionally, parallel training is possible.
+The other flags you can use are as follows, although they are also documented in the code. Additionally, parallel training is possible.
 
 List of all flags:
 - **params**: name of the params list (defined in config.py) to use for parallel run
