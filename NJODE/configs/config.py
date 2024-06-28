@@ -143,7 +143,6 @@ from configs.dataset_configs import (
 ) = configs_Ball2D_BM.get_BALL2D_LARGE_OPTIMAL_PROJ_config()
 
 
-# TODO make these nicer and more consistent
 CONVEX_PEN_FUNCS = {
     "RBM_STANDARD": RBM_pen_func(DATA_DICTS["RBM_STANDARD"]),
     "RBM_MORE_BOUNCES": RBM_pen_func(DATA_DICTS["RBM_MORE_BOUNCES"]),

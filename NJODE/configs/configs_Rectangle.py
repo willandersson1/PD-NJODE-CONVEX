@@ -1,3 +1,7 @@
+"""
+author: William Andersson
+"""
+
 from configs.config_constants import (
     DEFAULT_ENC_NN,
     DEFAULT_ODE_NN,
@@ -73,6 +77,7 @@ def get_RECTANGLE_STANDARD_OPTIMAL_PROJ_config():
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
+        "project_only_at_inference": [False],
         "lmbda": [0],
     }
     param_list += get_parameter_array(param_dict=param_dict)
@@ -189,6 +194,7 @@ def get_RECTANGLE_WIDER_WITH_MU_OPTIMAL_PROJ_config():
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
+        "project_only_at_inference": [False],
         "lmbda": [0],
     }
     param_list += get_parameter_array(param_dict=param_dict)

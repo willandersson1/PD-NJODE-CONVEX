@@ -1,5 +1,5 @@
 """
-authors: Florian Krach & Marc Nuebel & Calypso Herrera
+authors: William Andersson & Florian Krach & Marc Nuebel & Calypso Herrera
 
 implementation of the model for NJ-ODE
 """
@@ -116,7 +116,6 @@ def compute_loss(
     return outer / batch_size
 
 
-# TODO also here
 nonlinears = {  # dictionary of used non-linear activation functions. Reminder inputs
     "tanh": torch.nn.Tanh,
     "relu": torch.nn.ReLU,
@@ -396,7 +395,6 @@ class NJODE(torch.nn.Module):
         """
         super().__init__()
 
-        # TODO all this really needs to be cleaned up
         self.epoch = 1
         self.retrain_epoch = 0
         self.weight = weight
@@ -625,8 +623,6 @@ class NJODE(torch.nn.Module):
         M=None,
         start_M=None,
         dim_to=None,
-        predict_labels=None,
-        return_classifier_out=False,
         return_at_last_obs=False,
         epoch=None,
     ):
@@ -845,7 +841,7 @@ class NJODE(torch.nn.Module):
             return h_at_last_obs, sig_at_last_obs
         if return_path:
             # path dimension: [time_steps, batch_size, output_size]
-            # TODO note the output is different if returning the path
+            # NOTE the output is different if returning the path
             return (
                 h,
                 loss,
@@ -987,7 +983,6 @@ class NJODE(torch.nn.Module):
         :param start_M: see forward
         :return: dict, with prediction y and times t
         """
-        # TODO this might be problematic
         self.eval()
         _, _, path_t, path_h, path_y = self.forward(
             times=times,
@@ -1008,7 +1003,6 @@ class NJODE(torch.nn.Module):
 
     def additional_term(self, h, batch_size, delta_t):
         # Return it if needed and supported, otherwise just return 0
-        # TODO make thiis more elegant
         if hasattr(self, "lmbda") and self.lmbda is not None and self.lmbda > 0:
             point_loss = self.lmbda * self.penalising_func(self.readout_map(h))
             return (1 / batch_size) * (delta_t * torch.sum(point_loss))
@@ -1036,6 +1030,7 @@ class NJODE_convex_projection(NJODE):
         in_shape_func,
         penalising_func,
         project,
+        project_only_at_inference=False,
         lmbda=0,
         bias=True,
         dropout_rate=0,
@@ -1044,7 +1039,6 @@ class NJODE_convex_projection(NJODE):
         weight_decay=1.0,
         **options,
     ):
-        # TODO definitely don't need a bunch of these, same with other models
         super().__init__(
             input_size=input_size,
             hidden_size=hidden_size,
@@ -1064,8 +1058,11 @@ class NJODE_convex_projection(NJODE):
             **options,
         )
         self.project = project
+        self.project_only_at_inference = project_only_at_inference
 
     def full_readout(self, h):
+        if self.project_only_at_inference and self.training:
+            return self.readout_map(h)
         return self.project(self.readout_map(h))
 
 
@@ -1099,7 +1096,9 @@ class NJODE_vertex_approach(NJODE):
             readout_nn=readout_nn,
             enc_nn=enc_nn,
             use_rnn=use_rnn,
-            in_shape_func=lambda l: [True for _ in l],
+            in_shape_func=lambda l: [
+                True for _ in l
+            ],  # small hack (vertex approach by definition always inside Q)
             penalising_func=zero_pen_func,
             lmbda=0,
             bias=bias,

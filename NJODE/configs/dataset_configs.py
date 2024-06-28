@@ -1,3 +1,7 @@
+"""
+author: William Andersson
+"""
+
 import copy
 
 import numpy as np
@@ -160,7 +164,7 @@ def opt_Ball2D_proj(ball2d_data_dict_name):
             if norm <= R:
                 projected[i] = X[i]
             else:
-                projected[i] = (1 / norm) * X[i]
+                projected[i] = R * (1 / norm) * X[i]
 
         return projected
 

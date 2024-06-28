@@ -1,3 +1,7 @@
+"""
+author: William Andersson
+"""
+
 from configs.config_constants import (
     DEFAULT_ENC_NN,
     DEFAULT_ODE_NN,
@@ -36,6 +40,7 @@ def get_BALL2D_STANDARD_NJODE_config():
         "evaluate": [True],
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
+        "lmbda": [0],
     }
     param_list += get_parameter_array(param_dict=param_dict)
 
@@ -75,6 +80,7 @@ def get_BALL2D_STANDARD_OPTIMAL_PROJ_config():
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
+        "project_only_at_inference": [False],
         "lmbda": [0],
     }
     param_list += get_parameter_array(param_dict=param_dict)
@@ -153,6 +159,7 @@ def get_BALL2D_LARGE_OPTIMAL_PROJ_config():
         "paths_to_plot": [(0, 1)],
         "saved_models_path": [models_path],
         "other_model": ["optimal_projection"],
+        "project_only_at_inference": [False],
         "lmbda": [0],
     }
     param_list += get_parameter_array(param_dict=param_dict)

@@ -29,7 +29,6 @@ from sklearn.model_selection import train_test_split
 from synthetic_datasets import Ball2D_BM, Rectangle, ReflectedBM
 from torch.utils.data import DataLoader
 
-# TODO this is bad
 sys.path.append("../")
 
 # =====================================================================================================================
@@ -67,7 +66,6 @@ USE_GPU = False
 
 # =====================================================================================================================
 # Functions
-# TODO this is bad
 makedirs = config_utils.makedirs
 
 
@@ -508,7 +506,6 @@ def train(
         save_extras = {}
 
     # get the model & optimizer
-    # TODO fix this up. also lmda isn't in every config.
     if "other_model" not in options:  # take NJODE model if not specified otherwise
         params_dict["in_shape_func"] = dataset_configs.IN_SHAPE_FUNCS[data_dict]
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
@@ -520,6 +517,7 @@ def train(
         params_dict["penalising_func"] = config.CONVEX_PEN_FUNCS[data_dict]
         params_dict["project"] = dataset_configs.OPTIMAL_PROJECTION_FUNCS[data_dict]
         params_dict["lmbda"] = options["lmbda"]
+        params_dict["project_only_at_inference"] = options["project_only_at_inference"]
         model = models.NJODE_convex_projection(**params_dict)
         model_name = "convex_projection"
     elif options["other_model"] == "vertex_approach":
@@ -644,7 +642,7 @@ def train(
 
     metric_app = []
     while model.epoch <= epochs:
-        num_in_loss, num_out_loss = 0, 0  # TODO init earlier?
+        num_in_loss, num_out_loss = 0, 0
         t = time.time()  # return the time in seconds since the epoch
         model.train()
         for i, b in tqdm.tqdm(enumerate(dl)):  # iterate over the dataloader
@@ -662,7 +660,6 @@ def train(
             start_X = b["start_X"].to(device)
             obs_idx = b["obs_idx"]
             n_obs_ot = b["n_obs_ot"].to(device)
-            # TODO actually this pct in is just for  a batch so will need to add it or w/e to get a total for the epoch
             hT, loss, n_in, n_out = model(
                 times=times,
                 time_ptr=time_ptr,
@@ -739,7 +736,7 @@ def train(
                 # if functions are applied, also compute the loss when only
                 #   using the coordinates where function was not applied
                 #   -> this can be compared to the optimal-eval-loss
-                if mult is not None and mult > 1:  # TODO is this used?
+                if mult is not None and mult > 1:
                     if "other_model" not in options:
                         hT_corrected, c_loss_corrected, _, _ = model(
                             times,
@@ -806,10 +803,7 @@ def train(
             loss_val = loss_val / num_obs
             loss_val_corrected /= num_obs
             eval_msd = eval_msd / num_obs
-            # TODO remove one of these
-            pct_in_loss = num_in_loss / (
-                num_in_loss + num_out_loss
-            )  # TODO I'm sure I can calculate this without needing num_out
+            pct_in_loss = num_in_loss / (num_in_loss + num_out_loss)
             pct_in_eval = num_in_eval / (num_in_eval + num_out_eval)
             train_loss = loss.detach().numpy()
             print_str = (

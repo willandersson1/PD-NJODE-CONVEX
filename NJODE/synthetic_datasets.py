@@ -1,5 +1,5 @@
 """
-author: Florian Krach & Calypso Herrera
+author: William Andersson & Florian Krach & Calypso Herrera
 
 code to generate synthetic data from stock-model SDEs
 """
@@ -468,7 +468,6 @@ class Rectangle(StockModel):
         use_numerical_cond_exp,
         **kwargs,
     ):
-        # TODO doubt all of these are used, same for other datasets
         assert width > 0 and length > 0
 
         self.width = width
@@ -527,7 +526,6 @@ class Rectangle(StockModel):
         return self.rbm_x._in_shape(x[0]) and self.rbm_y._in_shape(x[1])
 
     def plot_first_path(self, paths_x, paths_y):
-        # TODO eventually remove this
         path_x = paths_x[0]
         path_y = paths_y[0]
         xs = np.arange(path_x.shape[1])
@@ -704,7 +702,6 @@ class BMWeights(StockModel):
 
     @property
     def paths_dir(self):
-        # TODO really hacky since assumes just the first BMWeights
         return Path("..") / "data" / "training_data" / "paths" / "BMWeights-1"
 
     def _get_time_idx_from_time(self, t):
@@ -868,7 +865,6 @@ hyperparam_test_stock_models = {
 
 
 def draw_stock_model(stock_model_name):
-    # TODO need this? and the hyperparams?
     hyperparam_test_stock_models["model_name"] = stock_model_name
     stockmodel = DATASETS[stock_model_name](**hyperparam_test_stock_models)
     stock_paths, dt = stockmodel.generate_paths()
