@@ -73,7 +73,9 @@ and the code of: https://github.com/zcakhaa/DeepLOB-Deep-Convolutional-Neural-Ne
 
 
 --------------------------------------------------------------------------------
-# Instructions for running experiments mentioned in the thesis
+## Instructions for running experiments mentioned in the thesis
+
+Here are the instructions to run experiments in general. Later we provide the exact commands used to run each specific experiment in the thesis.
 
 Configs for the datasets can be found in `NJODE/configs/dataset_configs.py`, while the code to generate the datasets is in `NJODE/synthetic_datasets.py`. The settings are the ones mentioned in the thesis. 
 
@@ -115,7 +117,129 @@ List of all flags:
 - **saved_models_path**: path where the models are saved
 - **overwrite_params**: name of dict (defined in config.py) to use for overwriting params
 - **plot_paths**: name of the dict (in config.py) defining input for extras.plot_paths_from_checkpoint
-- **climate_crossval**: name of the dict (in config.py) defining input for extras.get_cross_validation
-- **plot_conv_study**: name of the dict (in config.py) defining input for extras.plot_convergence_study
 
+### Specific commands used
+RBMStandard
+```sh
+python data_utils.py --dataset_name=RBM --dataset_params=RBM_STANDARD
+```
+```sh
+python run.py --params=param_list_RBM_STANDARD_NJODE --get_overview=overview_dict_RBM_STANDARD_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_RBM_STANDARD_OPTIMAL_PROJ --get_overview=overview_dict_RBM_STANDARD_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
 
+RBMMoreBounces
+```sh
+python data_utils.py --dataset_name=RBM --dataset_params=RBM_MORE_BOUNCES
+```
+```sh
+python run.py --params=param_list_RBM_MORE_BOUNCES_NJODE --get_overview=overview_dict_RBM_MORE_BOUNCES_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_RBM_MORE_BOUNCES_OPTIMAL_PROJ --get_overview=overview_dict_RBM_MORE_BOUNCES_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+RectangleStandard
+```sh
+python data_utils.py --dataset_name=Rectangle --dataset_params=RECTANGLE_STANDARD
+```
+```sh
+python run.py --params=param_list_RECTANGLE_STANDARD_NJODE --get_overview=overview_dict_RECTANGLE_STANDARD_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_RECTANGLE_STANDARD_OPTIMAL_PROJ --get_overview=overview_dict_RECTANGLE_STANDARD_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_RECTANGLE_STANDARD_VERTEX_APPROACH --get_overview=overview_dict_RECTANGLE_STANDARD_VERTEX_APPROACH --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+RectangleWider
+```sh
+python data_utils.py --dataset_name=Rectangle --dataset_params=RECTANGLE_WIDER_WITH_MU
+```
+```sh
+python run.py --params=param_list_RECTANGLE_WIDER_WITH_MU_NJODE --get_overview=overview_dict_RECTANGLE_WIDER_WITH_MU_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_RECTANGLE_WIDER_WITH_MU_OPTIMAL_PROJ --get_overview=overview_dict_RECTANGLE_WIDER_WITH_MU_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_RECTANGLE_WIDER_WITH_MU_VERTEX_APPROACH --get_overview=overview_dict_RECTANGLE_WIDER_WITH_MU_VERTEX_APPROACH --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+RectangleBMWeights
+```sh
+python data_utils.py --dataset_name=BMWeights --dataset_params=BM_WEIGHTS_RECTANGLE_STANDARD
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_RECTANGLE_STANDARD_NJODE --get_overview=overview_dict_BM_WEIGHTS_RECTANGLE_STANDARD_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_RECTANGLE_STANDARD_OPTIMAL_PROJ --get_overview=overview_dict_BM_WEIGHTS_RECTANGLE_STANDARD_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_RECTANGLE_STANDARD_VERTEX_APPROACH --get_overview=overview_dict_BM_WEIGHTS_RECTANGLE_STANDARD_VERTEX_APPROACH --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+1Simplex
+```sh
+python data_utils.py --dataset_name=BMWeights --dataset_params=BM_WEIGHTS_SIMPLEX2D
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_SIMPLEX2D_NJODE --get_overview=overview_dict_BM_WEIGHTS_SIMPLEX2D_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ --get_overview=overview_dict_BM_WEIGHTS_SIMPLEX2D_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_SIMPLEX2D_VERTEX_APPROACH --get_overview=overview_dict_BM_WEIGHTS_SIMPLEX2D_VERTEX_APPROACH --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+2Simplex
+```sh
+python data_utils.py --dataset_name=BMWeights --dataset_params=BALL2D_STANDARD
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_SIMPLEX3D_NJODE --get_overview=overview_dict_BM_WEIGHTS_SIMPLEX3D_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_SIMPLEX3D_OPTIMAL_PROJ --get_overview=overview_dict_BM_WEIGHTS_SIMPLEX3D_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BM_WEIGHTS_SIMPLEX3D_VERTEX_APPROACH --get_overview=overview_dict_BM_WEIGHTS_SIMPLEX3D_VERTEX_APPROACH --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+Ball2DStandard
+```sh
+python data_utils.py --dataset_name=Ball2D_BM --dataset_params=BALL2D_STANDARD
+```
+```sh
+python run.py --params=param_list_BALL2D_STANDARD_NJODE --get_overview=overview_dict_BALL2D_STANDARD_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BALL2D_STANDARD_OPTIMAL_PROJ --get_overview=overview_dict_BALL2D_STANDARD_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+Ball2DLarge
+```sh
+python data_utils.py --dataset_name=Ball2D_BM --dataset_params=BALL2D_LARGE
+```
+```sh
+python run.py --params=param_list_BALL2D_LARGE_NJODE --get_overview=overview_dict_BALL2D_LARGE_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BALL2D_LARGE_OPTIMAL_PROJ --get_overview=overview_dict_BALL2D_LARGE_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+
+Penalising function experiments
+```sh
+python data_utils.py --dataset_name=Ball2D_BM --dataset_params=BALL2D_TINY
+```
+```sh
+python run.py --params=param_list_BALL2D_TINY_NJODE --get_overview=overview_dict_BALL2D_TINY_NJODE --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```
+```sh
+python run.py --params=param_list_BALL2D_TINY_OPTIMAL_PROJ --get_overview=overview_dict_BALL2D_TINY_OPTIMAL_PROJ --first_id=1 --NB_JOBS=1 --NB_CPUS=1
+```

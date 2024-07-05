@@ -19,21 +19,6 @@ def get_rectangle_bounds(width, length, offset=(0, 0)):
 
 
 DATA_DICTS = {
-    "RBM_DONT_HIT": {  # for comparison to normal NJODE, is it useful though?
-        "model_name": "RBM",
-        "nb_paths": 200,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 1,
-        "obs_perc": 0.1,
-        "mu": 0,
-        "sigma": 1,
-        "lb": 0,
-        "ub": 20,
-        "max_terms": 3,
-        "use_approx_paths_technique": True,
-        "use_numerical_cond_exp": True,
-    },
     "RBM_STANDARD": {
         "model_name": "RBM",
         "nb_paths": 200,
@@ -145,6 +130,15 @@ DATA_DICTS = {
     "BALL2D_LARGE": {
         "model_name": "Ball2D_BM",
         "max_radius": 10,
+        "nb_paths": 500,
+        "nb_steps": 100,
+        "maturity": 1.0,
+        "dimension": 2,
+        "obs_perc": 0.1,
+    },
+    "BALL2D_TINY": {
+        "model_name": "Ball2D_BM",
+        "max_radius": 0.0005,
         "nb_paths": 500,
         "nb_steps": 100,
         "maturity": 1.0,
