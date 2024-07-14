@@ -1,6 +1,6 @@
 # Path-Dependent Neural Jump ODEs in convex spaces
 
-This repository is the official implementation of the master's thesis _PD-NJ-ODE for Predictions in Convex Spaces_, which in turn is an extension of the second part of the series of works on Neural Jump ODEs.
+This repository is the official implementation of the master's thesis _PD-NJ-ODE for Predictions in Convex Spaces_ (provided in this repo), which in turn is an extension of the second part of the series of works on Neural Jump ODEs.
 
 The one this codebase builds directly on is [Optimal Estimation of Generic Dynamics by Path-Dependent Neural Jump ODEs](https://arxiv.org/abs/2206.14284), which was published as an extension of the original Neural Jump ODE paper [Neural Jump Ordinary Differential Equations: Consistent Continuous-Time Prediction and Filtering](https://openreview.net/forum?id=JFKR3WqwyXR).
 
