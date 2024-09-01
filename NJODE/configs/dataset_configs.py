@@ -118,6 +118,15 @@ DATA_DICTS = {
         "dimension": 3,
         "obs_perc": 0.1,
     },
+    "BALL2D_TINY": {
+        "model_name": "Ball2D_BM",
+        "max_radius": 0.0005,
+        "nb_paths": 500,
+        "nb_steps": 100,
+        "maturity": 1.0,
+        "dimension": 2,
+        "obs_perc": 0.1,
+    },
     "BALL2D_STANDARD": {
         "model_name": "Ball2D_BM",
         "max_radius": 1,
@@ -130,15 +139,6 @@ DATA_DICTS = {
     "BALL2D_LARGE": {
         "model_name": "Ball2D_BM",
         "max_radius": 10,
-        "nb_paths": 500,
-        "nb_steps": 100,
-        "maturity": 1.0,
-        "dimension": 2,
-        "obs_perc": 0.1,
-    },
-    "BALL2D_TINY": {
-        "model_name": "Ball2D_BM",
-        "max_radius": 0.0005,
         "nb_paths": 500,
         "nb_steps": 100,
         "maturity": 1.0,
@@ -390,6 +390,7 @@ IN_SHAPE_FUNCS = {
     "BM_WEIGHTS_RECTANGLE_STANDARD": rect_in_shape("RECTANGLE_STANDARD"),
     "BM_WEIGHTS_SIMPLEX2D": simplex_in_shape,
     "BM_WEIGHTS_SIMPLEX3D": simplex_in_shape,
+    "BALL2D_TINY": ball2D_in_shape("BALL2D_TINY"),
     "BALL2D_STANDARD": ball2D_in_shape("BALL2D_STANDARD"),
     "BALL2D_LARGE": ball2D_in_shape("BALL2D_LARGE"),
 }

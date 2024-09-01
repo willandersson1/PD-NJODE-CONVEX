@@ -142,15 +142,15 @@ from configs.dataset_configs import (
     plot_paths_BALL2D_LARGE_OPTIMAL_PROJ_dict,
 ) = configs_Ball2D_BM.get_BALL2D_LARGE_OPTIMAL_PROJ_config()
 (
-    param_list_TINY_NJODE,
-    overview_dict_TINY_NJODE,
-    plot_paths_TINY_NJODE_dict,
-) = configs_Ball2D_BM.get_TINY_NJODE_config()
+    param_list_BALL2D_TINY_NJODE,
+    overview_dict_BALL2D_TINY_NJODE,
+    plot_paths_BALL2D_TINY_NJODE_dict,
+) = configs_Ball2D_BM.get_BALL2D_TINY_NJODE_config()
 (
-    param_list_TINY_OPTIMAL_PROJ,
-    overview_dict_TINY_OPTIMAL_PROJ,
-    plot_paths_TINY_OPTIMAL_PROJ_dict,
-) = configs_Ball2D_BM.get_TINY_OPTIMAL_PROJ_config()
+    param_list_BALL2D_TINY_OPTIMAL_PROJ,
+    overview_dict_BALL2D_TINY_OPTIMAL_PROJ,
+    plot_paths_BALL2D_TINY_OPTIMAL_PROJ_dict,
+) = configs_Ball2D_BM.get_BALL2D_TINY_OPTIMAL_PROJ_config()
 
 
 CONVEX_PEN_FUNCS = {
